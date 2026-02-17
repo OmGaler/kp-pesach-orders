@@ -5,7 +5,9 @@ import {
   OrderValidationError
 } from "@/lib/order-service";
 
-const submitOrderMock = vi.fn();
+const { submitOrderMock } = vi.hoisted(() => ({
+  submitOrderMock: vi.fn()
+}));
 
 vi.mock("@/lib/order-service", async () => {
   const actual = await vi.importActual<typeof import("@/lib/order-service")>(

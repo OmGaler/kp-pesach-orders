@@ -14,10 +14,10 @@ export interface StoreConfig {
 }
 
 export const storeConfig: StoreConfig = {
-  storeName: "KP",
+  storeName: "Kosher Paradise",
   ordersEmail: process.env.ORDERS_EMAIL ?? "orders@example.com",
-  contactPhone: "0200 000 0000",
-  contactEmail: "contact@example.com",
+  contactPhone: "0208 455 2454",
+  contactEmail: "orders@kosherparadise.co.uk",
   openingTimes: [
     "Sun-Thu: 08:00-20:00",
     "Fri: 08:00-14:00",

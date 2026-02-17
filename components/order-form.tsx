@@ -56,6 +56,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   );
   const [deliverySlot, setDeliverySlot] = useState<DeliverySlot>("AM");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [contact, setContact] = useState<ContactState>(emptyContactState);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,6 +98,13 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     setContact((prev) => ({
       ...prev,
       [key]: value
+    }));
+  }
+
+  function toggleCategory(categoryName: string) {
+    setCollapsedCategories((prev) => ({
+      ...prev,
+      [categoryName]: !prev[categoryName]
     }));
   }
 
@@ -163,7 +171,14 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     <form onSubmit={handleSubmit} className="stack-md">
       <section className="panel stack-md">
         <div className="stack-sm">
-          <Image src="/logo-placeholder.svg" alt="KP logo" width={128} height={64} priority />
+          <Image
+            src="/logo.png"
+            alt="KP logo"
+            width={112}
+            height={112}
+            className="brand-logo"
+            priority
+          />
           <h1 className="headline">KP Pesach Order Form</h1>
           <p className="subtle">Search items, choose quantities, and submit your delivery request.</p>
         </div>
@@ -173,13 +188,16 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
         <div className="panel stack-md">
           <div className="field">
             <label htmlFor="search">Search products</label>
-            <input
-              id="search"
-              type="search"
-              placeholder="Type product or pack size..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <div className="search-input-wrap">
+              <input
+                id="search"
+                type="text"
+                className="search-input"
+                placeholder="Type product or pack size..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
           </div>
 
           {visibleCatalog.length === 0 ? (
@@ -188,46 +206,61 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
           {visibleCatalog.map((category) => (
             <article className="category-block" key={category.name}>
-              <h3>{category.name}</h3>
-              {category.products.map((product) => {
-                const qty = quantities[product.id] ?? 0;
-                return (
-                  <div className="product-row" key={product.id}>
-                    <div className="stack-sm">
-                      <strong>{product.name}</strong>
-                      {product.size ? <span className="pill">{product.size}</span> : null}
-                    </div>
-                    <div className="qty-wrap">
-                      <button
-                        type="button"
-                        className="btn-qty"
-                        aria-label={`Decrease quantity for ${product.name}`}
-                        onClick={() => setProductQty(product.id, qty - 1)}
-                      >
-                        -
-                      </button>
-                      <input
-                        className="qty-input"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={qty}
-                        aria-label={`Quantity for ${product.name}`}
-                        onChange={(event) =>
-                          setProductQty(product.id, Number.parseInt(event.target.value || "0", 10))
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="btn-qty"
-                        aria-label={`Increase quantity for ${product.name}`}
-                        onClick={() => setProductQty(product.id, qty + 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+              <button
+                type="button"
+                className="category-toggle"
+                onClick={() => toggleCategory(category.name)}
+                aria-expanded={!collapsedCategories[category.name]}
+              >
+                <span>{category.name}</span>
+                <span className="category-toggle-meta">
+                  {category.products.length} items {collapsedCategories[category.name] ? "▸" : "▾"}
+                </span>
+              </button>
+              {!collapsedCategories[category.name]
+                ? category.products.map((product) => {
+                    const qty = quantities[product.id] ?? 0;
+                    return (
+                      <div className="product-row" key={product.id}>
+                        <div className="stack-sm">
+                          <strong>{product.name}</strong>
+                          {product.size ? <span className="pill">{product.size}</span> : null}
+                        </div>
+                        <div className="qty-wrap">
+                          <button
+                            type="button"
+                            className="btn-qty"
+                            aria-label={`Decrease quantity for ${product.name}`}
+                            onClick={() => setProductQty(product.id, qty - 1)}
+                          >
+                            -
+                          </button>
+                          <input
+                            className="qty-input"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={qty}
+                            aria-label={`Quantity for ${product.name}`}
+                            onChange={(event) =>
+                              setProductQty(
+                                product.id,
+                                Number.parseInt(event.target.value || "0", 10)
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="btn-qty"
+                            aria-label={`Increase quantity for ${product.name}`}
+                            onClick={() => setProductQty(product.id, qty + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                : null}
             </article>
           ))}
         </div>

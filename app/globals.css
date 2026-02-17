@@ -1,11 +1,11 @@
 :root {
-  --bg: #f7f4eb;
-  --panel: #fffef9;
-  --text: #24211a;
-  --muted: #6e6558;
-  --line: #d7cdb9;
-  --brand: #2e6f45;
-  --brand-dark: #1f4f31;
+  --bg: #f8efef;
+  --panel: #fff9f9;
+  --text: #2d1d1f;
+  --muted: #7a6267;
+  --line: #dcc4c8;
+  --brand: #61130e;
+  --brand-dark: #470d0a;
   --danger: #a12727;
 }
 
@@ -18,7 +18,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(circle at top right, #fff5d8 0%, var(--bg) 40%);
+  background: radial-gradient(circle at top right, #f8dde3 0%, var(--bg) 42%);
   color: var(--text);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -27,6 +27,13 @@ body {
   max-width: 1100px;
   margin: 0 auto;
   padding: 1rem 1rem 6rem;
+}
+
+.brand-logo {
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .panel {
@@ -132,6 +139,26 @@ button {
   border-bottom: 1px dashed #e8ddc7;
 }
 
+.category-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8ecea;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.category-toggle-meta {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .qty-wrap {
   display: flex;
   gap: 0.35rem;
@@ -159,8 +186,8 @@ button {
 
 .pill {
   display: inline-block;
-  background: #efe8d7;
-  color: #4f4637;
+  background: #f0dfdd;
+  color: #5d2f2a;
   border-radius: 999px;
   padding: 0.15rem 0.6rem;
   font-size: 0.8rem;
@@ -180,8 +207,34 @@ button {
   position: sticky;
   bottom: 0.75rem;
   margin-top: 1rem;
-  background: linear-gradient(to top, rgba(247, 244, 235, 0.95), rgba(247, 244, 235, 0));
+  background: linear-gradient(to top, rgba(248, 239, 239, 0.95), rgba(248, 239, 239, 0));
   padding-top: 0.8rem;
+}
+
+.search-input {
+  display: block;
+  width: 100%;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  line-height: 1.2;
+  padding: 0 0.75rem;
+  margin: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.search-input-wrap {
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  overflow: hidden;
+}
+
+.search-input::-ms-clear,
+.search-input::-ms-reveal {
+  display: none;
 }
 
 @media (max-width: 900px) {

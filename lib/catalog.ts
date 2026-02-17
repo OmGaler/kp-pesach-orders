@@ -7,11 +7,7 @@ import type { Category, Product } from "@/types/order";
 type RawCell = string | number | null | undefined;
 type RawCatalogRow = [RawCell?, RawCell?, RawCell?, RawCell?, RawCell?, RawCell?];
 
-const DEFAULT_CATALOG_PATH = path.join(
-  process.cwd(),
-  "data",
-  "KP Pesach List 5786.xlsx"
-);
+const DEFAULT_CATALOG_FILENAME = "KP Pesach List 5786.xlsx";
 const CATEGORY_PATTERN = /^[A-Z0-9 &'()\/+\-.,]+$/;
 const FALLBACK_CATEGORY = "MISCELLANEOUS";
 
@@ -89,15 +85,62 @@ export function parseCatalogRows(rows: RawCatalogRow[]): Category[] {
   }));
 }
 
-export function loadCatalogFromWorkbook(filePath = DEFAULT_CATALOG_PATH): Category[] {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Catalog file not found: ${filePath}`);
+function listCatalogCandidates(customPath?: string): string[] {
+  if (customPath) {
+    return [customPath];
   }
 
-  const workbook = XLSX.readFile(filePath, {
-    cellDates: false,
-    raw: false
-  });
+  const candidates: string[] = [];
+  const dataDir = path.join(process.cwd(), "data");
+  const exact = path.join(dataDir, DEFAULT_CATALOG_FILENAME);
+  candidates.push(exact);
+
+  if (fs.existsSync(dataDir)) {
+    const dataXlsx = fs
+      .readdirSync(dataDir)
+      .filter((name) => name.toLowerCase().endsWith(".xlsx"))
+      .sort()
+      .map((name) => path.join(dataDir, name));
+    candidates.push(...dataXlsx);
+  }
+
+  const rootXlsx = fs
+    .readdirSync(process.cwd())
+    .filter((name) => name.toLowerCase().endsWith(".xlsx"))
+    .sort()
+    .map((name) => path.join(process.cwd(), name));
+  candidates.push(...rootXlsx);
+
+  return Array.from(new Set(candidates));
+}
+
+function readWorkbookFromCandidates(candidates: string[]) {
+  const errors: string[] = [];
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+    try {
+      const bytes = fs.readFileSync(candidate);
+      const workbook = XLSX.read(bytes, {
+        type: "buffer",
+        cellDates: false,
+        raw: false
+      });
+      return workbook;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      errors.push(`${candidate}: ${reason}`);
+    }
+  }
+
+  throw new Error(
+    `Could not open any catalog workbook. Tried:\n${candidates.join("\n")}\nErrors:\n${errors.join("\n")}`
+  );
+}
+
+export function loadCatalogFromWorkbook(filePath?: string): Category[] {
+  const workbook = readWorkbookFromCandidates(listCatalogCandidates(filePath));
 
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {

@@ -51,23 +51,6 @@ npm run dev
 2. Commit and push to `main`.
 3. Vercel redeploys automatically.
 
-## Deploy on Vercel (Public GitHub Repo)
-
-1. Push this project to a **public GitHub repository**.
-2. In Vercel, choose **Add New Project** and import the repo.
-3. Set all environment variables from `.env.example` in Vercel Project Settings.
-4. Deploy from `main`.
-5. Verify submission flow in production:
-   - order email arrives
-   - Google Sheet receives row
-   - optional customer confirmation email works
-
-## Security Notes
-
-- Never commit `.env.local` or real credentials.
-- Do not commit service account JSON files.
-- Use env vars only for SMTP and Google credentials.
-
 ## Tests
 
 Run:
@@ -75,5 +58,3 @@ Run:
 ```bash
 npm run test
 ```
-
-Includes parser and validation coverage, plus service-level submission behavior checks.
