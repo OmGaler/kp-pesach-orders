@@ -23,14 +23,7 @@ export async function appendOrderToSheet(order: NormalizedOrder): Promise<void> 
     .map((item) => `${item.name}${item.size ? ` (${item.size})` : ""} x${item.qty}`)
     .join("; ");
 
-  const address = [
-    order.addressLine1,
-    order.addressLine2,
-    order.city,
-    order.postcode
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const address = [order.addressLine1, order.addressLine2, order.postcode].filter(Boolean).join(", ");
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,

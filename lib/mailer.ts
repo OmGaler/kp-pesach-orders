@@ -18,12 +18,7 @@ function makeTransporter() {
 }
 
 function formatAddress(order: NormalizedOrder): string {
-  return [
-    order.addressLine1,
-    order.addressLine2,
-    order.city,
-    order.postcode
-  ]
+  return [order.addressLine1, order.addressLine2, order.postcode]
     .filter(Boolean)
     .join(", ");
 }

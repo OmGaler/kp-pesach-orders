@@ -26,8 +26,9 @@ const basePayload = {
   deliveryDate: "2026-03-28",
   deliverySlot: "AM" as const,
   customerName: "Sample Customer",
-  phone: "0200000000",
-  addressLine1: "1 Test Street"
+  phone: "020 7946 0958",
+  addressLine1: "1 Test Street",
+  postcode: "NW1 6XE"
 };
 
 describe("submitOrder", () => {

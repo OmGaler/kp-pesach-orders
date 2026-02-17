@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { OrderPayload } from "@/types/order";
 
+const ukPostcodeRegex =
+  /^(GIR 0AA|[A-PR-UWYZ][A-HK-Y]?\d[A-Z\d]?\s?\d[ABD-HJLNP-UW-Z]{2})$/i;
+
+const ukPhoneRegex =
+  /^(?:(?:\+44\s?(?:\(0\)\s?)?)|0)(?:\d[\s()-]?){9,10}$/;
+
 const normalizedString = (min = 1) =>
   z
     .string()
@@ -31,6 +37,14 @@ const optionalEmail = z
   .refine((value) => value === undefined || z.string().email().safeParse(value).success, {
     message: "Invalid email address"
   });
+
+const ukPhone = normalizedString(1).refine((value) => ukPhoneRegex.test(value), {
+  message: "Please enter a valid UK phone number"
+});
+
+const ukPostcode = normalizedString(5).refine((value) => ukPostcodeRegex.test(value), {
+  message: "Please enter a valid UK postcode"
+});
 
 export function isDateWithinWindow(
   value: string,
@@ -63,11 +77,10 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
     ),
     deliverySlot: z.enum(["AM", "PM"]),
     customerName: normalizedString(2),
-    phone: normalizedString(5),
+    phone: ukPhone,
     addressLine1: normalizedString(3),
     addressLine2: optionalNormalizedString,
-    city: optionalNormalizedString,
-    postcode: optionalNormalizedString,
+    postcode: ukPostcode,
     email: optionalEmail,
     notes: optionalNormalizedString
   });

@@ -12,8 +12,9 @@ describe("validation", () => {
         deliveryDate: "2026-03-28",
         deliverySlot: "AM",
         customerName: "Sample Customer",
-        phone: "0200000000",
+        phone: "020 7946 0958",
         addressLine1: "1 Test Street",
+        postcode: "SW1A 1AA",
         email: "test@example.com"
       },
       minDate,
@@ -31,13 +32,69 @@ describe("validation", () => {
           deliveryDate: "2026-04-20",
           deliverySlot: "AM",
           customerName: "Sample Customer",
-          phone: "0200000000",
-          addressLine1: "1 Test Street"
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
         },
         minDate,
         maxDate
       )
     ).toThrow();
+  });
+
+  test("rejects invalid UK phone number", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-28",
+          deliverySlot: "AM",
+          customerName: "Sample Customer",
+          phone: "555-1234",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("Please enter a valid UK phone number");
+  });
+
+  test("rejects invalid UK postcode", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-28",
+          deliverySlot: "AM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "12345"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("Please enter a valid UK postcode");
+  });
+
+  test("rejects invalid optional email", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-28",
+          deliverySlot: "AM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA",
+          email: "not-an-email"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("Invalid email address");
   });
 
   test("validates date helper boundaries", () => {

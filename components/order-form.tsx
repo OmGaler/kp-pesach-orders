@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { StoreConfig } from "@/config/store";
+import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
 import type { Category, DeliverySlot, OrderPayload } from "@/types/order";
 
 interface OrderFormProps {
@@ -17,7 +18,6 @@ interface ContactState {
   phone: string;
   addressLine1: string;
   addressLine2: string;
-  city: string;
   postcode: string;
   email: string;
   notes: string;
@@ -28,7 +28,6 @@ const emptyContactState: ContactState = {
   phone: "",
   addressLine1: "",
   addressLine2: "",
-  city: "",
   postcode: "",
   email: "",
   notes: ""
@@ -60,22 +59,27 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [contact, setContact] = useState<ContactState>(emptyContactState);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const hasSearch = search.trim().length > 0;
+  const allCategoryNames = useMemo(() => catalog.map((category) => category.name), [catalog]);
+  const searchIndex = useMemo(() => buildProductSearchIndex(catalog), [catalog]);
+  const areAllCollapsed = useMemo(
+    () =>
+      allCategoryNames.length > 0 &&
+      allCategoryNames.every((name) => Boolean(collapsedCategories[name])),
+    [allCategoryNames, collapsedCategories]
+  );
 
   const visibleCatalog = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) {
+    if (!hasSearch) {
       return catalog;
     }
-    return catalog
-      .map((category) => ({
-        ...category,
-        products: category.products.filter((product) => {
-          const size = product.size ?? "";
-          return `${product.name} ${size}`.toLowerCase().includes(term);
-        })
-      }))
-      .filter((category) => category.products.length > 0);
-  }, [catalog, search]);
+    return searchCatalog(searchIndex, search);
+  }, [catalog, hasSearch, search, searchIndex]);
+
+  const visibleProductCount = useMemo(
+    () => visibleCatalog.reduce((sum, category) => sum + category.products.length, 0),
+    [visibleCatalog]
+  );
 
   const totalUnits = useMemo(
     () => Object.values(quantities).reduce((sum, qty) => sum + qty, 0),
@@ -108,6 +112,16 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     }));
   }
 
+  function collapseAllCategories() {
+    setCollapsedCategories(
+      Object.fromEntries(allCategoryNames.map((name) => [name, true])) as Record<string, boolean>
+    );
+  }
+
+  function expandAllCategories() {
+    setCollapsedCategories({});
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
@@ -129,8 +143,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       phone: contact.phone,
       addressLine1: contact.addressLine1,
       addressLine2: contact.addressLine2 || undefined,
-      city: contact.city || undefined,
-      postcode: contact.postcode || undefined,
+      postcode: contact.postcode,
       email: contact.email || undefined,
       notes: contact.notes || undefined
     };
@@ -188,15 +201,41 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
         <div className="panel stack-md">
           <div className="field">
             <label htmlFor="search">Search products</label>
-            <div className="search-input-wrap">
+            <div className="search-bar">
               <input
                 id="search"
                 type="text"
                 className="search-input"
-                placeholder="Type product or pack size..."
+                placeholder="Try chrayne, charoses, grape juice..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                autoComplete="off"
               />
+              {hasSearch ? (
+                <button
+                  type="button"
+                  className="search-clear"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            <p className="subtle search-helper">
+              {hasSearch
+                ? `${visibleProductCount} matching product${visibleProductCount === 1 ? "" : "s"}`
+                : "Fuzzy search handles spelling/transliteration variations."}
+            </p>
+            <div className="search-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={areAllCollapsed ? expandAllCategories : collapseAllCategories}
+                disabled={hasSearch}
+              >
+                {areAllCollapsed ? "Expand all categories" : "Collapse all categories"}
+              </button>
             </div>
           </div>
 
@@ -209,15 +248,20 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               <button
                 type="button"
                 className="category-toggle"
-                onClick={() => toggleCategory(category.name)}
-                aria-expanded={!collapsedCategories[category.name]}
+                onClick={() => {
+                  if (!hasSearch) {
+                    toggleCategory(category.name);
+                  }
+                }}
+                aria-expanded={hasSearch || !collapsedCategories[category.name]}
               >
                 <span>{category.name}</span>
                 <span className="category-toggle-meta">
-                  {category.products.length} items {collapsedCategories[category.name] ? "▸" : "▾"}
+                  {category.products.length} items{" "}
+                  {hasSearch ? "" : collapsedCategories[category.name] ? "+" : "-"}
                 </span>
               </button>
-              {!collapsedCategories[category.name]
+              {(hasSearch || !collapsedCategories[category.name])
                 ? category.products.map((product) => {
                     const qty = quantities[product.id] ?? 0;
                     return (
@@ -331,6 +375,8 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               <label htmlFor="phone">Phone</label>
               <input
                 id="phone"
+                type="tel"
+                autoComplete="tel"
                 value={contact.phone}
                 onChange={(event) => updateContactField("phone", event.target.value)}
                 required
@@ -353,29 +399,22 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 onChange={(event) => updateContactField("addressLine2", event.target.value)}
               />
             </div>
-            <div className="inline-grid">
-              <div className="field">
-                <label htmlFor="city">City</label>
-                <input
-                  id="city"
-                  value={contact.city}
-                  onChange={(event) => updateContactField("city", event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="postcode">Postcode</label>
-                <input
-                  id="postcode"
-                  value={contact.postcode}
-                  onChange={(event) => updateContactField("postcode", event.target.value)}
-                />
-              </div>
+            <div className="field">
+              <label htmlFor="postcode">Postcode</label>
+              <input
+                id="postcode"
+                autoComplete="postal-code"
+                value={contact.postcode}
+                onChange={(event) => updateContactField("postcode", event.target.value)}
+                required
+              />
             </div>
             <div className="field">
               <label htmlFor="email">Email (optional)</label>
               <input
                 id="email"
                 type="email"
+                autoComplete="email"
                 value={contact.email}
                 onChange={(event) => updateContactField("email", event.target.value)}
               />

@@ -26,8 +26,7 @@ export interface OrderPayload {
   phone: string;
   addressLine1: string;
   addressLine2?: string;
-  city?: string;
-  postcode?: string;
+  postcode: string;
   email?: string;
   notes?: string;
 }
