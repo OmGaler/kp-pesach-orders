@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { StoreConfig } from "@/config/store";
 import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
@@ -56,8 +56,14 @@ function categoryAnchorId(name: string): string {
   return `category-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
 }
 
+function toTitleCase(value: string): string {
+  return value.toLowerCase().replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
 export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const router = useRouter();
+  const productsPanelRef = useRef<HTMLDivElement | null>(null);
+  const detailsSidebarRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [deliveryDate, setDeliveryDate] = useState(
     buildInitialDate(storeConfig.deliveryWindowStart)
@@ -125,6 +131,72 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     [productById, quantities]
   );
 
+  useEffect(() => {
+    const desktopMediaQuery = window.matchMedia("(max-width: 900px)");
+    let lastScrollY = window.scrollY;
+    let frameId: number | null = null;
+
+    function updateSidebarFromPageScroll() {
+      frameId = null;
+      const currentScrollY = window.scrollY;
+      const deltaY = currentScrollY - lastScrollY;
+      lastScrollY = currentScrollY;
+
+      if (desktopMediaQuery.matches || deltaY === 0) {
+        return;
+      }
+
+      const productsPanel = productsPanelRef.current;
+      const detailsSidebar = detailsSidebarRef.current;
+      if (!productsPanel || !detailsSidebar) {
+        return;
+      }
+
+      const productsRect = productsPanel.getBoundingClientRect();
+      const isProductsPanelVisible = productsRect.bottom > 0 && productsRect.top < window.innerHeight;
+      if (!isProductsPanelVisible) {
+        return;
+      }
+
+      const maxSidebarScroll = detailsSidebar.scrollHeight - detailsSidebar.clientHeight;
+      if (maxSidebarScroll <= 0) {
+        return;
+      }
+
+      const nextSidebarScrollTop = Math.min(
+        maxSidebarScroll,
+        Math.max(0, detailsSidebar.scrollTop + deltaY)
+      );
+      if (nextSidebarScrollTop !== detailsSidebar.scrollTop) {
+        detailsSidebar.scrollTop = nextSidebarScrollTop;
+      }
+    }
+
+    function handleScroll() {
+      if (frameId !== null) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(updateSidebarFromPageScroll);
+    }
+
+    function resetScrollTracking() {
+      lastScrollY = window.scrollY;
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", resetScrollTracking);
+    desktopMediaQuery.addEventListener("change", resetScrollTracking);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", resetScrollTracking);
+      desktopMediaQuery.removeEventListener("change", resetScrollTracking);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, []);
+
   function setProductQty(productId: string, qty: number) {
     const normalized = clampQty(qty);
     setQuantities((prev) => {
@@ -159,6 +231,17 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
   function expandAllCategories() {
     setCollapsedCategories({});
+  }
+
+  function expandCategory(categoryName: string) {
+    setCollapsedCategories((prev) => {
+      if (!prev[categoryName]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[categoryName];
+      return next;
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -244,8 +327,12 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           {visibleCatalog.length > 0 ? (
             <nav className="category-toc" aria-label="Category table of contents">
               {visibleCatalog.map((category) => (
-                <a key={category.name} href={`#${categoryAnchorId(category.name)}`}>
-                  {category.name}
+                <a
+                  key={category.name}
+                  href={`#${categoryAnchorId(category.name)}`}
+                  onClick={() => expandCategory(category.name)}
+                >
+                  {toTitleCase(category.name)}
                 </a>
               ))}
             </nav>
@@ -254,7 +341,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           )}
         </aside>
 
-        <div className="panel stack-md">
+        <div className="panel stack-md" ref={productsPanelRef}>
           <div className="field">
             <label htmlFor="search">Search products</label>
             <div className="search-bar">
@@ -365,146 +452,148 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           ))}
         </div>
 
-        <aside className="stack-md">
-          <section className="panel stack-md">
-            <h2>Store details</h2>
-            <p>
-              Contact: <strong>{storeConfig.contactPhone}</strong>
-              <br />
-              Email: <strong>{storeConfig.contactEmail}</strong>
-            </p>
-            <div className="stack-sm">
-              <strong>Opening times</strong>
-              {storeConfig.openingTimes.map((line) => (
-                <span className="subtle" key={line}>
-                  {line}
-                </span>
-              ))}
-            </div>
-          </section>
+        <aside className="details-sidebar">
+          <div className="details-sidebar-sticky stack-md" ref={detailsSidebarRef}>
+            <section className="panel stack-md">
+              <h2>Store details</h2>
+              <p>
+                Contact: <strong>{storeConfig.contactPhone}</strong>
+                <br />
+                Email: <strong>{storeConfig.contactEmail}</strong>
+              </p>
+              <div className="stack-sm">
+                <strong>Opening times</strong>
+                {storeConfig.openingTimes.map((line) => (
+                  <span className="subtle" key={line}>
+                    {line}
+                  </span>
+                ))}
+              </div>
+            </section>
 
-          <section className="panel stack-md">
-            <h2>Delivery</h2>
-            <div className="inline-grid">
+            <section className="panel stack-md">
+              <h2>Delivery</h2>
+              <div className="inline-grid">
+                <div className="field">
+                  <label htmlFor="deliveryDate">Delivery date</label>
+                  <input
+                    id="deliveryDate"
+                    type="date"
+                    min={storeConfig.deliveryWindowStart}
+                    max={storeConfig.deliveryWindowEnd}
+                    value={deliveryDate}
+                    onChange={(event) => setDeliveryDate(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="deliverySlot">AM / PM</label>
+                  <select
+                    id="deliverySlot"
+                    value={deliverySlot}
+                    onChange={(event) => setDeliverySlot(event.target.value as DeliverySlot)}
+                    required
+                  >
+                    {storeConfig.deliverySlots.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel stack-md">
+              <h2>Contact details</h2>
               <div className="field">
-                <label htmlFor="deliveryDate">Delivery date</label>
+                <label htmlFor="customerName">Full name</label>
                 <input
-                  id="deliveryDate"
-                  type="date"
-                  min={storeConfig.deliveryWindowStart}
-                  max={storeConfig.deliveryWindowEnd}
-                  value={deliveryDate}
-                  onChange={(event) => setDeliveryDate(event.target.value)}
+                  id="customerName"
+                  value={contact.customerName}
+                  onChange={(event) => updateContactField("customerName", event.target.value)}
                   required
                 />
               </div>
               <div className="field">
-                <label htmlFor="deliverySlot">AM / PM</label>
-                <select
-                  id="deliverySlot"
-                  value={deliverySlot}
-                  onChange={(event) => setDeliverySlot(event.target.value as DeliverySlot)}
+                <label htmlFor="phone">Phone</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={contact.phone}
+                  onChange={(event) => updateContactField("phone", event.target.value)}
                   required
-                >
-                  {storeConfig.deliverySlots.map((slot) => (
-                    <option key={slot} value={slot}>
-                      {slot}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
-            </div>
-          </section>
+              <div className="field">
+                <label htmlFor="addressLine1">Address line 1</label>
+                <input
+                  id="addressLine1"
+                  value={contact.addressLine1}
+                  onChange={(event) => updateContactField("addressLine1", event.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="addressLine2">Address line 2 (optional)</label>
+                <input
+                  id="addressLine2"
+                  value={contact.addressLine2}
+                  onChange={(event) => updateContactField("addressLine2", event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="postcode">Postcode</label>
+                <input
+                  id="postcode"
+                  autoComplete="postal-code"
+                  value={contact.postcode}
+                  onChange={(event) => updateContactField("postcode", event.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="email">Email (optional)</label>
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={contact.email}
+                  onChange={(event) => updateContactField("email", event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="notes">Notes (optional)</label>
+                <textarea
+                  id="notes"
+                  value={contact.notes}
+                  onChange={(event) => updateContactField("notes", event.target.value)}
+                />
+              </div>
+            </section>
 
-          <section className="panel stack-md">
-            <h2>Contact details</h2>
-            <div className="field">
-              <label htmlFor="customerName">Full name</label>
-              <input
-                id="customerName"
-                value={contact.customerName}
-                onChange={(event) => updateContactField("customerName", event.target.value)}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="phone">Phone</label>
-              <input
-                id="phone"
-                type="tel"
-                autoComplete="tel"
-                value={contact.phone}
-                onChange={(event) => updateContactField("phone", event.target.value)}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="addressLine1">Address line 1</label>
-              <input
-                id="addressLine1"
-                value={contact.addressLine1}
-                onChange={(event) => updateContactField("addressLine1", event.target.value)}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="addressLine2">Address line 2 (optional)</label>
-              <input
-                id="addressLine2"
-                value={contact.addressLine2}
-                onChange={(event) => updateContactField("addressLine2", event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="postcode">Postcode</label>
-              <input
-                id="postcode"
-                autoComplete="postal-code"
-                value={contact.postcode}
-                onChange={(event) => updateContactField("postcode", event.target.value)}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="email">Email (optional)</label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={contact.email}
-                onChange={(event) => updateContactField("email", event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="notes">Notes (optional)</label>
-              <textarea
-                id="notes"
-                value={contact.notes}
-                onChange={(event) => updateContactField("notes", event.target.value)}
-              />
-            </div>
-          </section>
-
-          <section className="panel stack-sm mobile-submit">
-            <h2>Basket</h2>
-            {selectedItems.length > 0 ? (
-              <ul className="basket-list">
-                {selectedItems.map(({ product, productId, qty }) => (
-                  <li key={productId} className="basket-row">
-                    <span>{product?.name ?? productId}</span>
-                    <strong>x{qty}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="subtle">No items selected yet.</p>
-            )}
-            <strong>Total units selected: {totalUnits}</strong>
-            {submitError ? <p className="error">{submitError}</p> : null}
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Submitting..." : "Submit order"}
-            </button>
-          </section>
+            <section className="panel stack-sm mobile-submit">
+              <h2>Basket</h2>
+              {selectedItems.length > 0 ? (
+                <ul className="basket-list">
+                  {selectedItems.map(({ product, productId, qty }) => (
+                    <li key={productId} className="basket-row">
+                      <span>{product?.name ?? productId}</span>
+                      <strong>x{qty}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="subtle">No items selected yet.</p>
+              )}
+              <strong>Total items: {totalUnits}</strong>
+              {submitError ? <p className="error">{submitError}</p> : null}
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? "Submitting..." : "Submit order"}
+              </button>
+            </section>
+          </div>
         </aside>
       </section>
     </form>
