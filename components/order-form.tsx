@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { StoreConfig } from "@/config/store";
 import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
-import type { Category, DeliverySlot, OrderPayload } from "@/types/order";
+import type { Category, DeliverySlot, OrderPayload, Product } from "@/types/order";
 
 interface OrderFormProps {
   catalog: Category[];
@@ -47,6 +47,15 @@ function clampQty(value: number): number {
   return Math.trunc(value);
 }
 
+function formatServerErrorForDisplay(message: string): string {
+  const cleaned = message.replace(/^[\w.[\]]+:\s*/u, "").trim();
+  return cleaned || "Order submission failed.";
+}
+
+function categoryAnchorId(name: string): string {
+  return `category-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
+
 export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -60,8 +69,15 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const hasSearch = search.trim().length > 0;
-  const allCategoryNames = useMemo(() => catalog.map((category) => category.name), [catalog]);
-  const searchIndex = useMemo(() => buildProductSearchIndex(catalog), [catalog]);
+  const nonEmptyCatalog = useMemo(
+    () => catalog.filter((category) => category.products.length > 0),
+    [catalog]
+  );
+  const allCategoryNames = useMemo(
+    () => nonEmptyCatalog.map((category) => category.name),
+    [nonEmptyCatalog]
+  );
+  const searchIndex = useMemo(() => buildProductSearchIndex(nonEmptyCatalog), [nonEmptyCatalog]);
   const areAllCollapsed = useMemo(
     () =>
       allCategoryNames.length > 0 &&
@@ -71,10 +87,10 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
   const visibleCatalog = useMemo(() => {
     if (!hasSearch) {
-      return catalog;
+      return nonEmptyCatalog;
     }
-    return searchCatalog(searchIndex, search);
-  }, [catalog, hasSearch, search, searchIndex]);
+    return searchCatalog(searchIndex, search).filter((category) => category.products.length > 0);
+  }, [hasSearch, nonEmptyCatalog, search, searchIndex]);
 
   const visibleProductCount = useMemo(
     () => visibleCatalog.reduce((sum, category) => sum + category.products.length, 0),
@@ -84,6 +100,29 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const totalUnits = useMemo(
     () => Object.values(quantities).reduce((sum, qty) => sum + qty, 0),
     [quantities]
+  );
+
+  const productById = useMemo(() => {
+    const index = new Map<string, Product>();
+    for (const category of nonEmptyCatalog) {
+      for (const product of category.products) {
+        index.set(product.id, product);
+      }
+    }
+    return index;
+  }, [nonEmptyCatalog]);
+
+  const selectedItems = useMemo(
+    () =>
+      Object.entries(quantities)
+        .filter(([, qty]) => qty > 0)
+        .map(([productId, qty]) => ({ product: productById.get(productId), productId, qty }))
+        .sort((a, b) => {
+          const aSort = a.product?.sortIndex ?? Number.MAX_SAFE_INTEGER;
+          const bSort = b.product?.sortIndex ?? Number.MAX_SAFE_INTEGER;
+          return aSort - bSort;
+        }),
+    [productById, quantities]
   );
 
   function setProductQty(productId: string, qty: number) {
@@ -162,7 +201,9 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
         | { ok: false; error: string };
 
       if (!response.ok || !body.ok) {
-        setSubmitError("error" in body ? body.error : "Order submission failed");
+        setSubmitError(
+          "error" in body ? formatServerErrorForDisplay(body.error) : "Order submission failed"
+        );
         return;
       }
 
@@ -193,11 +234,26 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             priority
           />
           <h1 className="headline">KP Pesach Order Form</h1>
-          <p className="subtle">Search items, choose quantities, and submit your delivery request.</p>
+          <p className="subtle">Search items, choose quantities, and submit your delivery order.</p>
         </div>
       </section>
 
       <section className="page-grid">
+        <aside className="panel stack-sm toc-sidebar">
+          <h2>Categories</h2>
+          {visibleCatalog.length > 0 ? (
+            <nav className="category-toc" aria-label="Category table of contents">
+              {visibleCatalog.map((category) => (
+                <a key={category.name} href={`#${categoryAnchorId(category.name)}`}>
+                  {category.name}
+                </a>
+              ))}
+            </nav>
+          ) : (
+            <p className="subtle">No categories to show.</p>
+          )}
+        </aside>
+
         <div className="panel stack-md">
           <div className="field">
             <label htmlFor="search">Search products</label>
@@ -225,7 +281,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             <p className="subtle search-helper">
               {hasSearch
                 ? `${visibleProductCount} matching product${visibleProductCount === 1 ? "" : "s"}`
-                : "Fuzzy search handles spelling/transliteration variations."}
+                : ""}
             </p>
             <div className="search-actions">
               <button
@@ -244,7 +300,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           ) : null}
 
           {visibleCatalog.map((category) => (
-            <article className="category-block" key={category.name}>
+            <article className="category-block" key={category.name} id={categoryAnchorId(category.name)}>
               <button
                 type="button"
                 className="category-toggle"
@@ -392,7 +448,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               />
             </div>
             <div className="field">
-              <label htmlFor="addressLine2">Address line 2</label>
+              <label htmlFor="addressLine2">Address line 2 (optional)</label>
               <input
                 id="addressLine2"
                 value={contact.addressLine2}
@@ -430,6 +486,19 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           </section>
 
           <section className="panel stack-sm mobile-submit">
+            <h2>Basket</h2>
+            {selectedItems.length > 0 ? (
+              <ul className="basket-list">
+                {selectedItems.map(({ product, productId, qty }) => (
+                  <li key={productId} className="basket-row">
+                    <span>{product?.name ?? productId}</span>
+                    <strong>x{qty}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="subtle">No items selected yet.</p>
+            )}
             <strong>Total units selected: {totalUnits}</strong>
             {submitError ? <p className="error">{submitError}</p> : null}
             <button type="submit" className="btn-primary" disabled={loading}>

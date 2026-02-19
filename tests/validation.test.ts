@@ -39,7 +39,7 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow();
+    ).toThrow(`deliveryDate: Delivery date must be between ${minDate} and ${maxDate}`);
   });
 
   test("rejects invalid UK phone number", () => {
@@ -57,7 +57,7 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow("Please enter a valid UK phone number");
+    ).toThrow("phone: Please enter a valid UK phone number");
   });
 
   test("rejects invalid UK postcode", () => {
@@ -75,7 +75,7 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow("Please enter a valid UK postcode");
+    ).toThrow("postcode: Postcode must be a valid UK postcode");
   });
 
   test("rejects invalid optional email", () => {
@@ -94,7 +94,44 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow("Invalid email address");
+    ).toThrow("email: Email must be a valid address");
+  });
+
+  test("rejects single-word names", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-28",
+          deliverySlot: "AM",
+          customerName: "Sample",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("customerName: Full name must include at least first and last name");
+  });
+
+  test("keeps address line 2 optional", () => {
+    const payload = validateOrderPayload(
+      {
+        items: [{ productId: "abc", qty: 2 }],
+        deliveryDate: "2026-03-28",
+        deliverySlot: "AM",
+        customerName: "Sample Customer",
+        phone: "020 7946 0958",
+        addressLine1: "1 Test Street",
+        addressLine2: "   ",
+        postcode: "SW1A 1AA"
+      },
+      minDate,
+      maxDate
+    );
+
+    expect(payload.addressLine2).toBeUndefined();
   });
 
   test("validates date helper boundaries", () => {

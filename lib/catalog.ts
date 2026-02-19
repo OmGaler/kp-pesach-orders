@@ -95,21 +95,16 @@ function listCatalogCandidates(customPath?: string): string[] {
   const exact = path.join(dataDir, DEFAULT_CATALOG_FILENAME);
   candidates.push(exact);
 
-  if (fs.existsSync(dataDir)) {
-    const dataXlsx = fs
-      .readdirSync(dataDir)
-      .filter((name) => name.toLowerCase().endsWith(".xlsx"))
-      .sort()
-      .map((name) => path.join(dataDir, name));
-    candidates.push(...dataXlsx);
+  if (!fs.existsSync(dataDir)) {
+    return candidates;
   }
 
-  const rootXlsx = fs
-    .readdirSync(process.cwd())
+  const dataXlsx = fs
+    .readdirSync(dataDir)
     .filter((name) => name.toLowerCase().endsWith(".xlsx"))
     .sort()
-    .map((name) => path.join(process.cwd(), name));
-  candidates.push(...rootXlsx);
+    .map((name) => path.join(dataDir, name));
+  candidates.push(...dataXlsx);
 
   return Array.from(new Set(candidates));
 }
@@ -135,7 +130,7 @@ function readWorkbookFromCandidates(candidates: string[]) {
   }
 
   throw new Error(
-    `Could not open any catalog workbook. Tried:\n${candidates.join("\n")}\nErrors:\n${errors.join("\n")}`
+    `Could not open any catalog workbook in /data. Tried:\n${candidates.join("\n")}\nErrors:\n${errors.join("\n")}`
   );
 }
 

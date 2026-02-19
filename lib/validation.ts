@@ -7,11 +7,29 @@ const ukPostcodeRegex =
 const ukPhoneRegex =
   /^(?:(?:\+44\s?(?:\(0\)\s?)?)|0)(?:\d[\s()-]?){9,10}$/;
 
-const normalizedString = (min = 1) =>
+function wordCount(value: string): number {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+const normalizedString = ({
+  label,
+  min = 1,
+  minMessage
+}: {
+  label: string;
+  min?: number;
+  minMessage?: string;
+}) =>
   z
-    .string()
+    .string({
+      required_error: `${label} is required`,
+      invalid_type_error: `${label} must be text`
+    })
     .transform((value) => value.trim())
-    .pipe(z.string().min(min));
+    .pipe(z.string().min(min, minMessage ?? `${label} is required`));
 
 const optionalNormalizedString = z
   .string()
@@ -35,16 +53,36 @@ const optionalEmail = z
     return trimmed.length ? trimmed : undefined;
   })
   .refine((value) => value === undefined || z.string().email().safeParse(value).success, {
-    message: "Invalid email address"
+    message: "Email must be a valid address"
   });
 
-const ukPhone = normalizedString(1).refine((value) => ukPhoneRegex.test(value), {
+const ukPhone = normalizedString({
+  label: "Phone",
+  minMessage: "Phone is required"
+}).refine((value) => ukPhoneRegex.test(value), {
   message: "Please enter a valid UK phone number"
 });
 
-const ukPostcode = normalizedString(5).refine((value) => ukPostcodeRegex.test(value), {
-  message: "Please enter a valid UK postcode"
+const ukPostcode = normalizedString({
+  label: "Postcode",
+  min: 5,
+  minMessage: "Postcode is required"
+}).refine((value) => ukPostcodeRegex.test(value), {
+  message: "Postcode must be a valid UK postcode"
 });
+
+function formatIssue(issue: z.ZodIssue): string {
+  if (issue.path.length === 0) {
+    return issue.message;
+  }
+
+  const path = issue.path
+    .map((part) => String(part))
+    .join(".")
+    .replace(/\.\d+\./g, "[].");
+
+  return `${path}: ${issue.message}`;
+}
 
 export function isDateWithinWindow(
   value: string,
@@ -66,19 +104,42 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
     items: z
       .array(
         z.object({
-          productId: normalizedString(1),
-          qty: z.number().int().min(1).max(99)
+          productId: normalizedString({
+            label: "Product",
+            minMessage: "Each selected item must include a product id"
+          }),
+          qty: z
+            .number({
+              required_error: "Quantity is required",
+              invalid_type_error: "Quantity must be a number"
+            })
+            .int("Quantity must be a whole number")
+            .min(1, "Quantity must be at least 1")
+            .max(99, "Quantity cannot exceed 99")
         })
       )
       .min(1, "At least one item is required"),
-    deliveryDate: normalizedString(1).refine(
+    deliveryDate: normalizedString({
+      label: "Delivery date",
+      minMessage: "Delivery date is required"
+    }).refine(
       (value) => isDateWithinWindow(value, minDateIso, maxDateIso),
       `Delivery date must be between ${minDateIso} and ${maxDateIso}`
     ),
     deliverySlot: z.enum(["AM", "PM"]),
-    customerName: normalizedString(2),
+    customerName: normalizedString({
+      label: "Full name",
+      min: 3,
+      minMessage: "Full name is required"
+    }).refine((value) => wordCount(value) >= 2, {
+      message: "Full name must include at least first and last name"
+    }),
     phone: ukPhone,
-    addressLine1: normalizedString(3),
+    addressLine1: normalizedString({
+      label: "Address line 1",
+      min: 3,
+      minMessage: "Address line 1 is required"
+    }),
     addressLine2: optionalNormalizedString,
     postcode: ukPostcode,
     email: optionalEmail,
@@ -95,7 +156,7 @@ export function validateOrderPayload(
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];
-    throw new Error(firstIssue?.message ?? "Invalid order payload");
+    throw new Error(firstIssue ? formatIssue(firstIssue) : "Invalid order payload");
   }
 
   return parsed.data;

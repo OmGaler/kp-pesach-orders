@@ -14,6 +14,7 @@ Next.js full-stack order form for KP Pesach grocery orders, hosted on Vercel wit
 - Optional customer confirmation email
 - Google Sheets logging for all successful orders
 - Basic in-memory rate limiting on order submission
+- Vercel Web Analytics support (`@vercel/analytics`)
 
 ## Tech Stack
 
@@ -21,6 +22,7 @@ Next.js full-stack order form for KP Pesach grocery orders, hosted on Vercel wit
 - `xlsx` for catalog parsing
 - `nodemailer` for SMTP
 - `googleapis` for Sheets
+- `@vercel/analytics` for Vercel analytics
 - `vitest` for unit/API-oriented tests
 
 ## Local Setup
