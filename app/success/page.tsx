@@ -1,15 +1,25 @@
 import Link from "next/link";
 
+type SuccessSearchParams = {
+  ref?: string | string[];
+  emailSent?: string | string[];
+};
+
 interface SuccessPageProps {
-  searchParams?: {
-    ref?: string;
-    emailSent?: string;
-  };
+  searchParams?: SuccessSearchParams | Promise<SuccessSearchParams>;
 }
 
-export default function SuccessPage({ searchParams }: SuccessPageProps) {
-  const orderRef = searchParams?.ref ?? "Unknown";
-  const emailSent = searchParams?.emailSent === "1";
+function asSingleValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
+export default async function SuccessPage({ searchParams }: SuccessPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const orderRef = asSingleValue(resolvedSearchParams?.ref) ?? "Unknown";
+  const emailSent = asSingleValue(resolvedSearchParams?.emailSent) === "1";
 
   return (
     <main className="page-shell">

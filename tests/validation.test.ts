@@ -4,12 +4,13 @@ import { isDateWithinWindow, validateOrderPayload } from "@/lib/validation";
 describe("validation", () => {
   const minDate = "2026-03-22";
   const maxDate = "2026-04-03";
+  const validDate = "2026-03-26";
 
   test("accepts a valid order payload", () => {
     const payload = validateOrderPayload(
       {
         items: [{ productId: "abc", qty: 2 }],
-        deliveryDate: "2026-03-28",
+        deliveryDate: validDate,
         deliverySlot: "AM",
         customerName: "Sample Customer",
         phone: "020 7946 0958",
@@ -47,7 +48,7 @@ describe("validation", () => {
       validateOrderPayload(
         {
           items: [{ productId: "abc", qty: 2 }],
-          deliveryDate: "2026-03-28",
+          deliveryDate: validDate,
           deliverySlot: "AM",
           customerName: "Sample Customer",
           phone: "555-1234",
@@ -65,7 +66,7 @@ describe("validation", () => {
       validateOrderPayload(
         {
           items: [{ productId: "abc", qty: 2 }],
-          deliveryDate: "2026-03-28",
+          deliveryDate: validDate,
           deliverySlot: "AM",
           customerName: "Sample Customer",
           phone: "020 7946 0958",
@@ -83,7 +84,7 @@ describe("validation", () => {
       validateOrderPayload(
         {
           items: [{ productId: "abc", qty: 2 }],
-          deliveryDate: "2026-03-28",
+          deliveryDate: validDate,
           deliverySlot: "AM",
           customerName: "Sample Customer",
           phone: "020 7946 0958",
@@ -102,7 +103,7 @@ describe("validation", () => {
       validateOrderPayload(
         {
           items: [{ productId: "abc", qty: 2 }],
-          deliveryDate: "2026-03-28",
+          deliveryDate: validDate,
           deliverySlot: "AM",
           customerName: "Sample",
           phone: "020 7946 0958",
@@ -119,7 +120,7 @@ describe("validation", () => {
     const payload = validateOrderPayload(
       {
         items: [{ productId: "abc", qty: 2 }],
-        deliveryDate: "2026-03-28",
+        deliveryDate: validDate,
         deliverySlot: "AM",
         customerName: "Sample Customer",
         phone: "020 7946 0958",
@@ -132,6 +133,60 @@ describe("validation", () => {
     );
 
     expect(payload.addressLine2).toBeUndefined();
+  });
+
+  test("rejects Saturday deliveries", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-28",
+          deliverySlot: "AM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("deliveryDate: Delivery is unavailable on Saturdays");
+  });
+
+  test("rejects Friday PM deliveries", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-03-27",
+          deliverySlot: "PM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("deliverySlot: Friday deliveries are AM only");
+  });
+
+  test("accepts Friday AM deliveries", () => {
+    const payload = validateOrderPayload(
+      {
+        items: [{ productId: "abc", qty: 2 }],
+        deliveryDate: "2026-03-27",
+        deliverySlot: "AM",
+        customerName: "Sample Customer",
+        phone: "020 7946 0958",
+        addressLine1: "1 Test Street",
+        postcode: "SW1A 1AA"
+      },
+      minDate,
+      maxDate
+    );
+
+    expect(payload.deliverySlot).toBe("AM");
   });
 
   test("validates date helper boundaries", () => {

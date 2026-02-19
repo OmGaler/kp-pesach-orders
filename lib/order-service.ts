@@ -32,6 +32,19 @@ const defaultDeps: SubmitDeps = {
   appendOrderToSheet
 };
 
+function envFlagEnabled(name: string): boolean {
+  const rawValue = process.env[name];
+  if (!rawValue) {
+    return false;
+  }
+  const value = rawValue.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function shouldAppendOrderToSheet(): boolean {
+  return !envFlagEnabled("SKIP_GOOGLE_SHEETS");
+}
+
 function makeOrderReference(now = new Date()): string {
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -104,7 +117,9 @@ export async function submitOrder(
 
   try {
     await deps.sendStoreOrderEmail(order, storeConfig);
-    await deps.appendOrderToSheet(order);
+    if (shouldAppendOrderToSheet()) {
+      await deps.appendOrderToSheet(order);
+    }
     const customerEmailSent = await deps.sendCustomerConfirmationEmail(order, storeConfig);
     return {
       ok: true,

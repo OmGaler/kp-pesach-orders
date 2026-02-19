@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isDeliveryDateAllowed, isFridayDeliveryDate } from "@/lib/delivery-rules";
 import type { OrderPayload } from "@/types/order";
 
 const ukPostcodeRegex =
@@ -100,51 +101,63 @@ export function isDateWithinWindow(
 }
 
 export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
-  return z.object({
-    items: z
-      .array(
-        z.object({
-          productId: normalizedString({
-            label: "Product",
-            minMessage: "Each selected item must include a product id"
-          }),
-          qty: z
-            .number({
-              required_error: "Quantity is required",
-              invalid_type_error: "Quantity must be a number"
-            })
-            .int("Quantity must be a whole number")
-            .min(1, "Quantity must be at least 1")
-            .max(99, "Quantity cannot exceed 99")
-        })
-      )
-      .min(1, "At least one item is required"),
-    deliveryDate: normalizedString({
-      label: "Delivery date",
-      minMessage: "Delivery date is required"
-    }).refine(
-      (value) => isDateWithinWindow(value, minDateIso, maxDateIso),
-      `Delivery date must be between ${minDateIso} and ${maxDateIso}`
-    ),
-    deliverySlot: z.enum(["AM", "PM"]),
-    customerName: normalizedString({
-      label: "Full name",
-      min: 3,
-      minMessage: "Full name is required"
-    }).refine((value) => wordCount(value) >= 2, {
-      message: "Full name must include at least first and last name"
-    }),
-    phone: ukPhone,
-    addressLine1: normalizedString({
-      label: "Address line 1",
-      min: 3,
-      minMessage: "Address line 1 is required"
-    }),
-    addressLine2: optionalNormalizedString,
-    postcode: ukPostcode,
-    email: optionalEmail,
-    notes: optionalNormalizedString
-  });
+  return z
+    .object({
+      items: z
+        .array(
+          z.object({
+            productId: normalizedString({
+              label: "Product",
+              minMessage: "Each selected item must include a product id"
+            }),
+            qty: z
+              .number({
+                required_error: "Quantity is required",
+                invalid_type_error: "Quantity must be a number"
+              })
+              .int("Quantity must be a whole number")
+              .min(1, "Quantity must be at least 1")
+              .max(99, "Quantity cannot exceed 99")
+          })
+        )
+        .min(1, "At least one item is required"),
+      deliveryDate: normalizedString({
+        label: "Delivery date",
+        minMessage: "Delivery date is required"
+      })
+        .refine(
+          (value) => isDateWithinWindow(value, minDateIso, maxDateIso),
+          `Delivery date must be between ${minDateIso} and ${maxDateIso}`
+        )
+        .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable on Saturdays"),
+      deliverySlot: z.enum(["AM", "PM"]),
+      customerName: normalizedString({
+        label: "Full name",
+        min: 3,
+        minMessage: "Full name is required"
+      }).refine((value) => wordCount(value) >= 2, {
+        message: "Full name must include at least first and last name"
+      }),
+      phone: ukPhone,
+      addressLine1: normalizedString({
+        label: "Address line 1",
+        min: 3,
+        minMessage: "Address line 1 is required"
+      }),
+      addressLine2: optionalNormalizedString,
+      postcode: ukPostcode,
+      email: optionalEmail,
+      notes: optionalNormalizedString
+    })
+    .superRefine((value, context) => {
+      if (isFridayDeliveryDate(value.deliveryDate) && value.deliverySlot === "PM") {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["deliverySlot"],
+          message: "Friday deliveries are AM only"
+        });
+      }
+    });
 }
 
 export function validateOrderPayload(

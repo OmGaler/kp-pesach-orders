@@ -23,7 +23,7 @@ const catalog: Category[] = [
 
 const basePayload = {
   items: [{ productId: "prod-1", qty: 2 }],
-  deliveryDate: "2026-03-28",
+  deliveryDate: "2026-03-26",
   deliverySlot: "AM" as const,
   customerName: "Sample Customer",
   phone: "020 7946 0958",
@@ -80,5 +80,33 @@ describe("submitOrder", () => {
         appendOrderToSheet: vi.fn()
       })
     ).rejects.toBeInstanceOf(OrderProcessingError);
+  });
+
+  test("skips sheets append when SKIP_GOOGLE_SHEETS is enabled", async () => {
+    const previousSkipSheets = process.env.SKIP_GOOGLE_SHEETS;
+    process.env.SKIP_GOOGLE_SHEETS = "true";
+    const sendStoreOrderEmail = vi.fn().mockResolvedValue(undefined);
+    const sendCustomerConfirmationEmail = vi.fn().mockResolvedValue(true);
+    const appendOrderToSheet = vi.fn().mockResolvedValue(undefined);
+
+    try {
+      const result = await submitOrder(basePayload, "4.4.4.4", {
+        getCatalog: () => catalog,
+        sendStoreOrderEmail,
+        sendCustomerConfirmationEmail,
+        appendOrderToSheet
+      });
+
+      expect(result.ok).toBe(true);
+      expect(sendStoreOrderEmail).toHaveBeenCalledTimes(1);
+      expect(appendOrderToSheet).toHaveBeenCalledTimes(0);
+      expect(sendCustomerConfirmationEmail).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousSkipSheets === undefined) {
+        delete process.env.SKIP_GOOGLE_SHEETS;
+      } else {
+        process.env.SKIP_GOOGLE_SHEETS = previousSkipSheets;
+      }
+    }
   });
 });

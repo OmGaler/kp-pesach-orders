@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { StoreConfig } from "@/config/store";
+import {
+  firstAllowedDeliveryDateInWindow,
+  isDeliveryDateAllowed,
+  isDeliverySlotAllowed,
+  isFridayDeliveryDate
+} from "@/lib/delivery-rules";
 import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
 import type { Category, DeliverySlot, OrderPayload, Product } from "@/types/order";
 
@@ -33,8 +39,8 @@ const emptyContactState: ContactState = {
   notes: ""
 };
 
-function buildInitialDate(minDate: string): string {
-  return minDate;
+function buildInitialDate(minDateIso: string, maxDateIso: string): string {
+  return firstAllowedDeliveryDateInWindow(minDateIso, maxDateIso);
 }
 
 function clampQty(value: number): number {
@@ -60,18 +66,46 @@ function toTitleCase(value: string): string {
   return value.toLowerCase().replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
 
+const kitniyotWordPattern = /\bkitniy(?:ot|os)\b/iu;
+const trailingKitniyotMarkerPattern = /\s+K$/u;
+
+function hasKitniyotWord(value: string | null | undefined): boolean {
+  return Boolean(value && kitniyotWordPattern.test(value));
+}
+
+function isKitniyotProduct(product: Product): boolean {
+  return (
+    trailingKitniyotMarkerPattern.test(product.name.trim()) ||
+    hasKitniyotWord(product.name) ||
+    hasKitniyotWord(product.size)
+  );
+}
+
+function stripKitniyotLabel(value: string): string {
+  const normalized = value
+    .replace(trailingKitniyotMarkerPattern, "")
+    .replace(/\s*-?\s*\bkitniy(?:ot|os)\b/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized || value;
+}
+
 export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const router = useRouter();
   const productsPanelRef = useRef<HTMLDivElement | null>(null);
   const detailsSidebarRef = useRef<HTMLDivElement | null>(null);
+  const deliverySectionRef = useRef<HTMLElement | null>(null);
+  const contactSectionRef = useRef<HTMLElement | null>(null);
+  const [mobileBasketOpen, setMobileBasketOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [deliveryDate, setDeliveryDate] = useState(
-    buildInitialDate(storeConfig.deliveryWindowStart)
+    buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd)
   );
   const [deliverySlot, setDeliverySlot] = useState<DeliverySlot>("AM");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [contact, setContact] = useState<ContactState>(emptyContactState);
+  const [noKitniyot, setNoKitniyot] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const hasSearch = search.trim().length > 0;
@@ -108,6 +142,24 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     [quantities]
   );
 
+  const detailsComplete = useMemo(
+    () =>
+      deliveryDate.trim().length > 0 &&
+      isDeliverySlotAllowed(deliveryDate, deliverySlot) &&
+      contact.customerName.trim().length > 0 &&
+      contact.phone.trim().length > 0 &&
+      contact.addressLine1.trim().length > 0 &&
+      contact.postcode.trim().length > 0,
+    [contact.addressLine1, contact.customerName, contact.phone, contact.postcode, deliveryDate, deliverySlot]
+  );
+
+  const canSubmitFromBasket = totalUnits > 0 && detailsComplete;
+
+  const availableDeliverySlots = useMemo(
+    () => (isFridayDeliveryDate(deliveryDate) ? (["AM"] as DeliverySlot[]) : storeConfig.deliverySlots),
+    [deliveryDate, storeConfig.deliverySlots]
+  );
+
   const productById = useMemo(() => {
     const index = new Map<string, Product>();
     for (const category of nonEmptyCatalog) {
@@ -129,6 +181,24 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           return aSort - bSort;
         }),
     [productById, quantities]
+  );
+
+  const selectedKitniyotItems = useMemo(
+    () =>
+      selectedItems.filter((item): item is (typeof selectedItems)[number] & { product: Product } => {
+        if (!item.product) {
+          return false;
+        }
+        return isKitniyotProduct(item.product);
+      }),
+    [selectedItems]
+  );
+
+  const hasKitniyotItemsSelected = selectedKitniyotItems.length > 0;
+  const showNoKitniyotWarning = noKitniyot && hasKitniyotItemsSelected;
+  const kitniyotNamesSummary = useMemo(
+    () => selectedKitniyotItems.map((item) => stripKitniyotLabel(item.product.name)).join(", "),
+    [selectedKitniyotItems]
   );
 
   useEffect(() => {
@@ -197,6 +267,27 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!mobileBasketOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileBasketOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileBasketOpen]);
+
   function setProductQty(productId: string, qty: number) {
     const normalized = clampQty(qty);
     setQuantities((prev) => {
@@ -241,6 +332,30 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       const next = { ...prev };
       delete next[categoryName];
       return next;
+    });
+  }
+
+  function handleDeliveryDateChange(value: string) {
+    if (!isDeliveryDateAllowed(value)) {
+      return;
+    }
+    setDeliveryDate(value);
+    if (isFridayDeliveryDate(value)) {
+      setDeliverySlot("AM");
+    }
+  }
+
+  function jumpToDetailsSection(section: "delivery" | "contact") {
+    setMobileBasketOpen(false);
+    const target = section === "delivery" ? deliverySectionRef.current : contactSectionRef.current;
+    if (!target) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
     });
   }
 
@@ -292,9 +407,11 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
       setQuantities({});
       setContact(emptyContactState);
-      setDeliveryDate(buildInitialDate(storeConfig.deliveryWindowStart));
+      setDeliveryDate(buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd));
       setDeliverySlot("AM");
+      setNoKitniyot(false);
       setSearch("");
+      setMobileBasketOpen(false);
       const emailSent = body.customerEmailSent ? "1" : "0";
       router.push(`/success?ref=${encodeURIComponent(body.orderRef)}&emailSent=${emailSent}`);
     } catch {
@@ -341,7 +458,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           )}
         </aside>
 
-        <div className="panel stack-md" ref={productsPanelRef}>
+        <div className="panel stack-md products-panel" ref={productsPanelRef}>
           <div className="field">
             <label htmlFor="search">Search products</label>
             <div className="search-bar">
@@ -407,11 +524,18 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               {(hasSearch || !collapsedCategories[category.name])
                 ? category.products.map((product) => {
                     const qty = quantities[product.id] ?? 0;
+                    const isKitniyot = isKitniyotProduct(product);
+                    const displayName = isKitniyot ? stripKitniyotLabel(product.name) : product.name;
                     return (
                       <div className="product-row" key={product.id}>
                         <div className="stack-sm">
-                          <strong>{product.name}</strong>
-                          {product.size ? <span className="pill">{product.size}</span> : null}
+                          <strong>{displayName}</strong>
+                          {product.size || isKitniyot ? (
+                            <div className="product-meta">
+                              {product.size ? <span className="pill">{product.size}</span> : null}
+                              {isKitniyot ? <span className="pill">KITNIYOT</span> : null}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="qty-wrap">
                           <button
@@ -454,7 +578,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
         <aside className="details-sidebar">
           <div className="details-sidebar-sticky stack-md" ref={detailsSidebarRef}>
-            <section className="panel stack-md">
+            <section className="panel stack-md details-store">
               <h2>Store details</h2>
               <p>
                 Contact: <strong>{storeConfig.contactPhone}</strong>
@@ -471,7 +595,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               </div>
             </section>
 
-            <section className="panel stack-md">
+            <section className="panel stack-md details-delivery" ref={deliverySectionRef}>
               <h2>Delivery</h2>
               <div className="inline-grid">
                 <div className="field">
@@ -482,7 +606,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                     min={storeConfig.deliveryWindowStart}
                     max={storeConfig.deliveryWindowEnd}
                     value={deliveryDate}
-                    onChange={(event) => setDeliveryDate(event.target.value)}
+                    onChange={(event) => handleDeliveryDateChange(event.target.value)}
                     required
                   />
                 </div>
@@ -494,7 +618,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                     onChange={(event) => setDeliverySlot(event.target.value as DeliverySlot)}
                     required
                   >
-                    {storeConfig.deliverySlots.map((slot) => (
+                    {availableDeliverySlots.map((slot) => (
                       <option key={slot} value={slot}>
                         {slot}
                       </option>
@@ -504,7 +628,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               </div>
             </section>
 
-            <section className="panel stack-md">
+            <section className="panel stack-md details-contact" ref={contactSectionRef}>
               <h2>Contact details</h2>
               <div className="field">
                 <label htmlFor="customerName">Full name</label>
@@ -573,7 +697,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               </div>
             </section>
 
-            <section className="panel stack-sm mobile-submit">
+            <section className="panel stack-sm mobile-submit details-basket">
               <h2>Basket</h2>
               {selectedItems.length > 0 ? (
                 <ul className="basket-list">
@@ -588,6 +712,21 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 <p className="subtle">No items selected yet.</p>
               )}
               <strong>Total items: {totalUnits}</strong>
+              <div className="kitniyot-consent-wrap">
+                <label className="kitniyot-consent">
+                  <input
+                    type="checkbox"
+                    checked={noKitniyot}
+                    onChange={(event) => setNoKitniyot(event.target.checked)}
+                  />
+                  <span>No Kitniyot</span>
+                </label>
+              </div>
+              {showNoKitniyotWarning ? (
+                <div className="kitniyot-consent-wrap">
+                  <p className="error">KITNIYOT items selected: {kitniyotNamesSummary}</p>
+                </div>
+              ) : null}
               {submitError ? <p className="error">{submitError}</p> : null}
               <button type="submit" className="btn-primary" disabled={loading}>
                 {loading ? "Submitting..." : "Submit order"}
@@ -596,6 +735,94 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
           </div>
         </aside>
       </section>
+
+      <button
+        type="button"
+        className="mobile-basket-fab"
+        onClick={() => setMobileBasketOpen(true)}
+        aria-haspopup="dialog"
+        aria-controls="mobile-basket-dialog"
+        aria-expanded={mobileBasketOpen}
+      >
+        Basket
+        <strong>{totalUnits}</strong>
+      </button>
+
+      <div
+        className={`mobile-basket-modal-backdrop${mobileBasketOpen ? " is-open" : ""}`}
+        aria-hidden={!mobileBasketOpen}
+        onClick={() => setMobileBasketOpen(false)}
+      >
+        <section
+          id="mobile-basket-dialog"
+          className="panel stack-sm mobile-basket-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Basket summary"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="mobile-basket-header">
+            <h2>Basket</h2>
+            <button
+              type="button"
+              className="mobile-basket-close"
+              onClick={() => setMobileBasketOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+
+          {selectedItems.length > 0 ? (
+            <ul className="basket-list">
+              {selectedItems.map(({ product, productId, qty }) => (
+                <li key={productId} className="basket-row">
+                  <span>{product?.name ?? productId}</span>
+                  <strong>x{qty}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="subtle">No items selected yet.</p>
+          )}
+
+          <strong>Total items: {totalUnits}</strong>
+          <div className="kitniyot-consent-wrap">
+            <label className="kitniyot-consent">
+              <input
+                type="checkbox"
+                checked={noKitniyot}
+                onChange={(event) => setNoKitniyot(event.target.checked)}
+              />
+              <span>No Kitniyot</span>
+            </label>
+          </div>
+          {showNoKitniyotWarning ? (
+            <div className="kitniyot-consent-wrap">
+              <p className="error">KITNIYOT items selected: {kitniyotNamesSummary}</p>
+            </div>
+          ) : null}
+          {submitError ? <p className="error">{submitError}</p> : null}
+          {!detailsComplete ? (
+            <p className="subtle">Complete delivery and contact details before submitting.</p>
+          ) : null}
+          <div className="mobile-basket-actions">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => jumpToDetailsSection("contact")}
+            >
+              Delivery & contact details
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading || !canSubmitFromBasket}
+            >
+              {loading ? "Submitting..." : canSubmitFromBasket ? "Submit order" : "Complete details first"}
+            </button>
+          </div>
+        </section>
+      </div>
     </form>
   );
 }
