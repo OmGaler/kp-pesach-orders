@@ -2,27 +2,26 @@ import { google } from "googleapis";
 import { requireEnv } from "@/lib/env";
 import type { NormalizedOrder } from "@/types/order";
 
-const DEFAULT_DASHBOARD_TITLE = "Orders";
+const DEFAULT_DASHBOARD_TITLE = "Sheet1";
 const DASHBOARD_HEADERS = [
   "Order ID",
   "Created At",
   "Customer Name",
-  "Status",
   "Delivery Date",
+  "Status",
   "Delivery Slot",
-  "Kitniyot",
-  "Unique Items",
-  "Total Quantity",
-  "Order Details",
-  "Customer Contact Number",
+  "Allow Kitniyot",
+  "Total Items",
+  "Phone Number",
   "Address",
-  "Email",
-  "Notes"
+  "Notes",
+  "Order Details"
 ];
 
 interface SpreadsheetSheet {
   sheetId: number;
   title: string;
+  rowCount?: number;
 }
 
 interface GoogleApiErrorShape {
@@ -125,7 +124,7 @@ function makeUniqueSheetTitle(baseTitle: string, existingTitles: Set<string>): s
   }
 }
 
-function listSheets(spreadsheetData: { sheets?: Array<{ properties?: { sheetId?: number | null; title?: string | null } | null }> | null }): SpreadsheetSheet[] {
+function listSheets(spreadsheetData: { sheets?: Array<{ properties?: { sheetId?: number | null; title?: string | null; gridProperties?: { rowCount?: number | null } | null } | null }> | null }): SpreadsheetSheet[] {
   return (spreadsheetData.sheets ?? [])
     .map((sheet): SpreadsheetSheet | null => {
       const sheetId = sheet.properties?.sheetId;
@@ -133,13 +132,32 @@ function listSheets(spreadsheetData: { sheets?: Array<{ properties?: { sheetId?:
       if (sheetId === undefined || sheetId === null || !title) {
         return null;
       }
-      return { sheetId, title };
+      return {
+        sheetId,
+        title,
+        rowCount: sheet.properties?.gridProperties?.rowCount ?? undefined
+      };
     })
     .filter((sheet): sheet is SpreadsheetSheet => sheet !== null);
 }
 
 function addressForOrder(order: NormalizedOrder): string {
   return [order.addressLine1, order.addressLine2, order.postcode].filter(Boolean).join(", ");
+}
+
+function formatSheetsDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function totalQuantity(order: NormalizedOrder): number {
@@ -152,7 +170,7 @@ async function getSpreadsheetSheets(
 ): Promise<SpreadsheetSheet[]> {
   const spreadsheet = await sheets.spreadsheets.get({
     spreadsheetId,
-    fields: "sheets.properties.sheetId,sheets.properties.title"
+    fields: "sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount"
   });
 
   return listSheets(spreadsheet.data);
@@ -205,7 +223,8 @@ async function ensureDashboardSheet(
 
   return {
     sheetId: newSheetId,
-    title: configuredTitle
+    title: configuredTitle,
+    rowCount: 1000
   };
 }
 
@@ -216,7 +235,7 @@ async function configureDashboardSheet(
 ): Promise<void> {
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: makeRange(dashboard.title, "A1:N1"),
+    range: makeRange(dashboard.title, "A1:L1"),
     valueInputOption: "RAW",
     requestBody: {
       values: [DASHBOARD_HEADERS]
@@ -238,44 +257,6 @@ async function configureDashboardSheet(
             fields: "gridProperties.frozenRowCount"
           }
         },
-        {
-          repeatCell: {
-            range: {
-              sheetId: dashboard.sheetId,
-              startRowIndex: 0,
-              endRowIndex: 1,
-              startColumnIndex: 0,
-              endColumnIndex: DASHBOARD_HEADERS.length
-            },
-            cell: {
-              userEnteredFormat: {
-                textFormat: {
-                  bold: true
-                },
-                backgroundColorStyle: {
-                  rgbColor: {
-                    red: 0.22,
-                    green: 0.28,
-                    blue: 0.25
-                  }
-                },
-                horizontalAlignment: "LEFT"
-              }
-            },
-            fields:
-              "userEnteredFormat.textFormat.bold,userEnteredFormat.backgroundColorStyle,userEnteredFormat.horizontalAlignment"
-          }
-        },
-        {
-          autoResizeDimensions: {
-            dimensions: {
-              sheetId: dashboard.sheetId,
-              dimension: "COLUMNS",
-              startIndex: 0,
-              endIndex: DASHBOARD_HEADERS.length
-            }
-          }
-        }
       ]
     }
   });
@@ -317,11 +298,12 @@ async function createOrderDetailSheet(
   const address = addressForOrder(order);
   const uniqueItems = order.items.length;
   const totalQty = totalQuantity(order);
+  const createdAtDisplay = formatSheetsDateTime(order.createdAtIso);
 
   const summaryRows = [
     ["Order Summary", ""],
     ["Order ID", order.orderRef],
-    ["Created At", order.createdAtIso],
+    ["Created At", createdAtDisplay],
     ["Customer Name", order.customerName],
     ["Delivery Date", order.deliveryDate],
     ["Delivery Slot", order.deliverySlot],
@@ -447,32 +429,56 @@ async function appendOrderToDashboard(
   order: NormalizedOrder,
   detailSheet: SpreadsheetSheet
 ): Promise<void> {
-  const uniqueItems = order.items.length;
   const totalQty = totalQuantity(order);
   const address = addressForOrder(order);
+  const createdAtDisplay = formatSheetsDateTime(order.createdAtIso);
   const detailLink = `=HYPERLINK("#gid=${detailSheet.sheetId}", "Open")`;
-
-  await sheets.spreadsheets.values.append({
+  const columnA = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: makeRange(dashboard.title, "A:N"),
+    range: makeRange(dashboard.title, "A:A")
+  });
+  const nextRow = (columnA.data.values?.length ?? 0) + 1;
+  const currentRowCount = dashboard.rowCount ?? 0;
+  if (nextRow > currentRowCount) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: dashboard.sheetId,
+                gridProperties: {
+                  rowCount: Math.max(nextRow + 200, currentRowCount + 200, 1000)
+                }
+              },
+              fields: "gridProperties.rowCount"
+            }
+          }
+        ]
+      }
+    });
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: makeRange(dashboard.title, `A${nextRow}:L${nextRow}`),
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [
         [
           order.orderRef,
-          order.createdAtIso,
+          createdAtDisplay,
           order.customerName,
-          "Not started",
           order.deliveryDate,
+          "Not started",
           order.deliverySlot,
-          false,
-          uniqueItems,
+          order.allowKitniyot,
           totalQty,
-          detailLink,
           order.phone,
           address,
-          order.email ?? "",
-          order.notes ?? ""
+          order.notes ?? "",
+          detailLink
         ]
       ]
     }

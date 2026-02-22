@@ -22,6 +22,7 @@ export interface OrderPayload {
   items: CartItemInput[];
   deliveryDate: string;
   deliverySlot: DeliverySlot;
+  allowKitniyot: boolean;
   customerName: string;
   phone: string;
   addressLine1: string;

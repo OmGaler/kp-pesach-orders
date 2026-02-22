@@ -376,6 +376,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       items,
       deliveryDate,
       deliverySlot,
+      allowKitniyot: !noKitniyot,
       customerName: contact.customerName,
       phone: contact.phone,
       addressLine1: contact.addressLine1,
