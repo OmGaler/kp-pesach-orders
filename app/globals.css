@@ -76,6 +76,10 @@ body {
   color: var(--muted);
 }
 
+.intro-copy p {
+  margin: 0;
+}
+
 .field {
   display: grid;
   gap: 0.35rem;

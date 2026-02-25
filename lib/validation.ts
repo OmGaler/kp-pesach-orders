@@ -132,6 +132,7 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
         .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable on Saturdays"),
       deliverySlot: z.enum(["AM", "PM"]),
       allowKitniyot: z.boolean().optional().default(true),
+      allowSubstitutes: z.boolean().optional().default(true),
       customerName: normalizedString({
         label: "Full name",
         min: 3,

@@ -106,6 +106,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
   const [contact, setContact] = useState<ContactState>(emptyContactState);
   const [noKitniyot, setNoKitniyot] = useState(false);
+  const [allowSubstitutes, setAllowSubstitutes] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const hasSearch = search.trim().length > 0;
@@ -377,6 +378,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       deliveryDate,
       deliverySlot,
       allowKitniyot: !noKitniyot,
+      allowSubstitutes,
       customerName: contact.customerName,
       phone: contact.phone,
       addressLine1: contact.addressLine1,
@@ -411,6 +413,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       setDeliveryDate(buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd));
       setDeliverySlot("AM");
       setNoKitniyot(false);
+      setAllowSubstitutes(true);
       setSearch("");
       setMobileBasketOpen(false);
       const emailSent = body.customerEmailSent ? "1" : "0";
@@ -434,8 +437,29 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             className="brand-logo"
             priority
           />
-          <h1 className="headline">KP Pesach Order Form</h1>
-          <p className="subtle">Search items, choose quantities, and submit your delivery order.</p>
+          <h1 className="headline">PESACH LIST 2026</h1>
+          <div className="subtle stack-sm intro-copy">
+            <p>
+              We would like to wish all of our customers a kosher and happy Pesach. This list
+              highlights our expanding range of <strong>Kosher for Passover</strong> products
+              available for delivery to your door.
+            </p>
+            <p>
+              Please fill out this form and we will be in touch to arrange delivery. If you have
+              any questions, feel free to contact us using the details listed below.
+            </p>
+            <p>
+              Although we expect to be fully stocked this year, the earlier your requested delivery
+              date, the more likely it is that we can ensure you receive all the products you need. If there is
+              anything you are looking for, please ask and we will do our very best to help.
+            </p>
+            <p>Thank you for your continued custom.</p>
+            <p>
+              <strong>Wishing you a Chag Pesach Kasher V'Same'ach!</strong>
+              <br />
+              <strong>The Kosher Paradise Team</strong>
+            </p>
+          </div>
         </div>
       </section>
 
@@ -723,6 +747,16 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                   <span>No Kitniyot</span>
                 </label>
               </div>
+              <div className="kitniyot-consent-wrap">
+                <label className="kitniyot-consent">
+                  <input
+                    type="checkbox"
+                    checked={allowSubstitutes}
+                    onChange={(event) => setAllowSubstitutes(event.target.checked)}
+                  />
+                  <span>Allow Substitute Items</span>
+                </label>
+              </div>
               {showNoKitniyotWarning ? (
                 <div className="kitniyot-consent-wrap">
                   <p className="error">KITNIYOT items selected: {kitniyotNamesSummary}</p>
@@ -795,6 +829,16 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 onChange={(event) => setNoKitniyot(event.target.checked)}
               />
               <span>No Kitniyot</span>
+            </label>
+          </div>
+          <div className="kitniyot-consent-wrap">
+            <label className="kitniyot-consent">
+              <input
+                type="checkbox"
+                checked={allowSubstitutes}
+                onChange={(event) => setAllowSubstitutes(event.target.checked)}
+              />
+              <span>Allow Substitute Items</span>
             </label>
           </div>
           {showNoKitniyotWarning ? (

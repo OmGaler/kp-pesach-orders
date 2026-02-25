@@ -23,6 +23,7 @@ export interface OrderPayload {
   deliveryDate: string;
   deliverySlot: DeliverySlot;
   allowKitniyot: boolean;
+  allowSubstitutes: boolean;
   customerName: string;
   phone: string;
   addressLine1: string;

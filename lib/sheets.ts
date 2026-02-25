@@ -11,6 +11,7 @@ const DASHBOARD_HEADERS = [
   "Status",
   "Delivery Slot",
   "Allow Kitniyot",
+  "Allow Substitutes",
   "Total Items",
   "Phone Number",
   "Address",
@@ -235,7 +236,7 @@ async function configureDashboardSheet(
 ): Promise<void> {
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: makeRange(dashboard.title, "A1:L1"),
+    range: makeRange(dashboard.title, "A1:M1"),
     valueInputOption: "RAW",
     requestBody: {
       values: [DASHBOARD_HEADERS]
@@ -307,6 +308,8 @@ async function createOrderDetailSheet(
     ["Customer Name", order.customerName],
     ["Delivery Date", order.deliveryDate],
     ["Delivery Slot", order.deliverySlot],
+    ["Allow Kitniyot", order.allowKitniyot ? "Yes" : "No"],
+    ["Allow Substitutes", order.allowSubstitutes ? "Yes" : "No"],
     ["Phone", order.phone],
     ["Email", order.email ?? ""],
     ["Address", address],
@@ -314,6 +317,8 @@ async function createOrderDetailSheet(
     ["Unique Items", String(uniqueItems)],
     ["Total Quantity", String(totalQty)]
   ];
+  const itemTableStartRow = summaryRows.length + 2;
+  const itemHeaderZeroBasedRow = itemTableStartRow - 1;
 
   const itemRows = [
     ["Item #", "Item Name", "Size", "Quantity"],
@@ -335,7 +340,7 @@ async function createOrderDetailSheet(
           values: summaryRows
         },
         {
-          range: makeRange(detailTitle, "A14"),
+          range: makeRange(detailTitle, `A${itemTableStartRow}`),
           values: itemRows
         }
       ]
@@ -351,7 +356,7 @@ async function createOrderDetailSheet(
             properties: {
               sheetId: detailSheetId,
               gridProperties: {
-                frozenRowCount: 14
+                frozenRowCount: itemTableStartRow
               }
             },
             fields: "gridProperties.frozenRowCount"
@@ -380,8 +385,8 @@ async function createOrderDetailSheet(
           repeatCell: {
             range: {
               sheetId: detailSheetId,
-              startRowIndex: 13,
-              endRowIndex: 14,
+              startRowIndex: itemHeaderZeroBasedRow,
+              endRowIndex: itemHeaderZeroBasedRow + 1,
               startColumnIndex: 0,
               endColumnIndex: 4
             },
@@ -462,7 +467,7 @@ async function appendOrderToDashboard(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: makeRange(dashboard.title, `A${nextRow}:L${nextRow}`),
+    range: makeRange(dashboard.title, `A${nextRow}:M${nextRow}`),
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [
@@ -474,6 +479,7 @@ async function appendOrderToDashboard(
           "Not started",
           order.deliverySlot,
           order.allowKitniyot,
+          order.allowSubstitutes,
           totalQty,
           order.phone,
           address,
