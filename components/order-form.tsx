@@ -606,6 +606,8 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             <section className="panel stack-md details-store">
               <h2>Store details</h2>
               <p>
+                <strong>{storeConfig.contactAddress}</strong>
+                <br />
                 Contact: <strong>{storeConfig.contactPhone}</strong>
                 <br />
                 Email: <strong>{storeConfig.contactEmail}</strong>
@@ -676,7 +678,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 />
               </div>
               <div className="field">
-                <label htmlFor="addressLine1">Address line 1</label>
+                <label htmlFor="addressLine1">Delivery address line 1</label>
                 <input
                   id="addressLine1"
                   value={contact.addressLine1}
@@ -685,7 +687,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 />
               </div>
               <div className="field">
-                <label htmlFor="addressLine2">Address line 2 (optional)</label>
+                <label htmlFor="addressLine2">Delivery address line 2 (optional)</label>
                 <input
                   id="addressLine2"
                   value={contact.addressLine2}

@@ -7,6 +7,7 @@ export interface StoreConfig {
   ordersEmail: string;
   contactPhone: string;
   contactEmail: string;
+  contactAddress: string;
   openingTimes: string[];
   deliveryWindowStart: string;
   deliveryWindowEnd: string;
@@ -18,6 +19,7 @@ export const storeConfig: StoreConfig = {
   ordersEmail: process.env.ORDERS_EMAIL ?? "orders@example.com",
   contactPhone: "0208 455 2454",
   contactEmail: "orders@kosherparadise.co.uk",
+  contactAddress: "10 Ashbourne Parade, Finchley Road, London, NW11 0AD",
   openingTimes: [
     "Sun-Thu: 08:00-20:00",
     "Fri: 08:00-14:00",
