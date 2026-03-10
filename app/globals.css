@@ -171,6 +171,18 @@ button {
   overflow-wrap: anywhere;
 }
 
+.category-subheading {
+  margin-top: 0.7rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f3eded;
+  color: var(--text);
+  text-align: center;
+  font-style: italic;
+  font-weight: 700;
+}
+
 .category-toggle {
   width: 100%;
   display: flex;

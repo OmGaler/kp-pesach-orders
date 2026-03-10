@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isCategoryRow, parseCatalogRows } from "@/lib/catalog";
+import { buildProductIndex, isCategoryRow, parseCatalogRows } from "@/lib/catalog";
 
 describe("catalog parsing", () => {
   test("detects category rows", () => {
@@ -27,5 +27,62 @@ describe("catalog parsing", () => {
     expect(parsed[0]?.products[0]?.size).toBe("250g");
     expect(parsed[1]?.name).toBe("MATZO PRODUCTS");
     expect(parsed[1]?.products).toHaveLength(1);
+  });
+
+  test("marks subheading rows while keeping their position in category output", () => {
+    const rows = [
+      ["Product", "Size"],
+      ["NUTS", ""],
+      ["Raw Nuts", ""],
+      ["Almonds", "200g"],
+      ["Roasted Salted", ""],
+      ["Cashews", "180g"]
+    ] as Array<[string, string]>;
+
+    const parsed = parseCatalogRows(rows, { subheadingRowIndexes: new Set([2, 4]) });
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.name).toBe("NUTS");
+    expect(parsed[0]?.products.map((product) => product.name)).toEqual([
+      "Raw Nuts",
+      "Almonds",
+      "Roasted Salted",
+      "Cashews"
+    ]);
+    expect(parsed[0]?.products[0]?.isSubheading).toBe(true);
+    expect(parsed[0]?.products[2]?.isSubheading).toBe(true);
+    expect(parsed[0]?.products[1]?.isSubheading).toBe(false);
+    expect(parsed[0]?.products[3]?.isSubheading).toBe(false);
+  });
+
+  test("keeps no-size product rows when they are not section subheadings", () => {
+    const rows = [
+      ["Product", "Size"],
+      ["SPICES", ""],
+      ["Whole Cloves", ""],
+      ["Ground Cinnamon", ""]
+    ] as Array<[string, string]>;
+
+    const parsed = parseCatalogRows(rows);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.name).toBe("SPICES");
+    expect(parsed[0]?.products.map((product) => product.name)).toEqual([
+      "Whole Cloves",
+      "Ground Cinnamon"
+    ]);
+    expect(parsed[0]?.products[0]?.size).toBeNull();
+    expect(parsed[0]?.products[1]?.size).toBeNull();
+  });
+
+  test("excludes subheading rows from orderable product index", () => {
+    const rows = [
+      ["NUTS", ""],
+      ["Raw Nuts", ""],
+      ["Almonds", "200g"]
+    ] as Array<[string, string]>;
+    const parsed = parseCatalogRows(rows, { subheadingRowIndexes: new Set([1]) });
+    const index = buildProductIndex(parsed);
+
+    const names = Array.from(index.values()).map((product) => product.name);
+    expect(names).toEqual(["Almonds"]);
   });
 });

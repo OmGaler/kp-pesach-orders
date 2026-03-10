@@ -15,7 +15,8 @@ const catalog: Category[] = [
         category: "PASSOVER ESSENTIALS",
         name: "Ready Made Charoses",
         size: "250g",
-        sortIndex: 0
+        sortIndex: 0,
+        isSubheading: false
       }
     ]
   }

@@ -11,14 +11,16 @@ const catalog: Category[] = [
         category: "PASSOVER ESSENTIALS",
         name: "Ready Made Charoses",
         size: "250g",
-        sortIndex: 0
+        sortIndex: 0,
+        isSubheading: false
       },
       {
         id: "chrayne",
         category: "PASSOVER ESSENTIALS",
         name: "Chrayne",
         size: null,
-        sortIndex: 1
+        sortIndex: 1,
+        isSubheading: false
       }
     ]
   },
@@ -30,7 +32,8 @@ const catalog: Category[] = [
         category: "WINE",
         name: "Grape Juice",
         size: "1L",
-        sortIndex: 0
+        sortIndex: 0,
+        isSubheading: false
       }
     ]
   }

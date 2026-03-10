@@ -6,6 +6,7 @@ export interface Product {
   name: string;
   size: string | null;
   sortIndex: number;
+  isSubheading: boolean;
 }
 
 export interface Category {

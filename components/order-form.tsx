@@ -90,6 +90,10 @@ function stripKitniyotLabel(value: string): string {
   return normalized || value;
 }
 
+function countOrderableProducts(products: Product[]): number {
+  return products.filter((product) => !product.isSubheading).length;
+}
+
 export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const router = useRouter();
   const productsPanelRef = useRef<HTMLDivElement | null>(null);
@@ -111,7 +115,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [loading, setLoading] = useState(false);
   const hasSearch = search.trim().length > 0;
   const nonEmptyCatalog = useMemo(
-    () => catalog.filter((category) => category.products.length > 0),
+    () => catalog.filter((category) => countOrderableProducts(category.products) > 0),
     [catalog]
   );
   const allCategoryNames = useMemo(
@@ -130,11 +134,14 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     if (!hasSearch) {
       return nonEmptyCatalog;
     }
-    return searchCatalog(searchIndex, search).filter((category) => category.products.length > 0);
+    return searchCatalog(searchIndex, search).filter(
+      (category) => countOrderableProducts(category.products) > 0
+    );
   }, [hasSearch, nonEmptyCatalog, search, searchIndex]);
 
   const visibleProductCount = useMemo(
-    () => visibleCatalog.reduce((sum, category) => sum + category.products.length, 0),
+    () =>
+      visibleCatalog.reduce((sum, category) => sum + countOrderableProducts(category.products), 0),
     [visibleCatalog]
   );
 
@@ -165,6 +172,9 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     const index = new Map<string, Product>();
     for (const category of nonEmptyCatalog) {
       for (const product of category.products) {
+        if (product.isSubheading) {
+          continue;
+        }
         index.set(product.id, product);
       }
     }
@@ -543,12 +553,19 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               >
                 <span>{category.name}</span>
                 <span className="category-toggle-meta">
-                  {category.products.length} items{" "}
+                  {countOrderableProducts(category.products)} items{" "}
                   {hasSearch ? "" : collapsedCategories[category.name] ? "+" : "-"}
                 </span>
               </button>
               {(hasSearch || !collapsedCategories[category.name])
                 ? category.products.map((product) => {
+                    if (product.isSubheading) {
+                      return (
+                        <div className="category-subheading" key={product.id}>
+                          {product.name}
+                        </div>
+                      );
+                    }
                     const qty = quantities[product.id] ?? 0;
                     const isKitniyot = isKitniyotProduct(product);
                     const displayName = isKitniyot ? stripKitniyotLabel(product.name) : product.name;

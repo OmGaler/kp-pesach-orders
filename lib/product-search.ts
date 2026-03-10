@@ -131,6 +131,9 @@ export function buildProductSearchIndex(catalog: Category[]): ProductSearchIndex
   const entries: IndexedProduct[] = [];
   for (const category of catalog) {
     for (const product of category.products) {
+      if (product.isSubheading) {
+        continue;
+      }
       const haystack = makeHaystack(product);
       entries.push({
         categoryName: category.name,
