@@ -45,6 +45,7 @@ body {
   padding: 1rem;
 }
 
+
 .page-grid {
   display: grid;
   grid-template-columns: 230px minmax(0, 1.4fr) 330px;
@@ -370,6 +371,22 @@ button {
   overflow-x: hidden;
   overscroll-behavior: contain;
   padding-right: 0.2rem;
+}
+
+.details-store {
+  gap: 0.6rem;
+}
+
+.details-store h2 {
+  margin-bottom: 0.2rem;
+}
+
+.details-store p {
+  margin: 0;
+}
+
+.details-store .stack-sm {
+  margin-top: 0.2rem;
 }
 
 .mobile-basket-fab {

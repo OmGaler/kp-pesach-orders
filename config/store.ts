@@ -16,14 +16,26 @@ export interface StoreConfig {
 
 export const storeConfig: StoreConfig = {
   storeName: "Kosher Paradise",
-  ordersEmail: process.env.ORDERS_EMAIL ?? "orders@example.com",
+  ordersEmail: process.env.ORDERS_EMAIL ?? "",
   contactPhone: "0208 455 2454",
   contactEmail: "orders@kosherparadise.co.uk",
   contactAddress: "10 Ashbourne Parade, Finchley Road, London, NW11 0AD",
   openingTimes: [
-    "Sun-Thu: 08:00-20:00",
-    "Fri: 08:00-14:00",
-    "Motzai Shabbos: 20:30-23:00"
+    "Thursday 19th March: 8AM-10PM",
+    "Friday 20th March: 7AM-7PM",
+    "Sunday 23rd to Thursday 26th March: 8AM-10PM",
+    "Friday 27th March: 7AM-6PM",
+    "Sunday 29th to Tuesday 31st March: 8AM-10PM",
+    "Wednesday 1st April: 7AM-7PM",
+    "Last time for eating Chametz: 10:55AM",
+    "Last time to burn Chametz: 12:00PM",
+    "First Night Pesach: Wednesday 1st April",
+    "Open throughout Chol Hamoed",
+    "Sunday 5th April: 8AM-10PM",
+    "Monday 6th April: 8AM-10PM",
+    "Tuesday 7th April: 7AM-7PM",
+
+    
   ],
   deliveryWindowStart: "2026-03-22",
   deliveryWindowEnd: "2026-04-03",

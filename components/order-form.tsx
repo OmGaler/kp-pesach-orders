@@ -435,6 +435,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             width={112}
             height={112}
             className="brand-logo"
+            unoptimized
             priority
           />
           <h1 className="headline">PESACH LIST 2026</h1>
@@ -614,11 +615,19 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               </p>
               <div className="stack-sm">
                 <strong>Opening times</strong>
-                {storeConfig.openingTimes.map((line) => (
-                  <span className="subtle" key={line}>
-                    {line}
-                  </span>
-                ))}
+                {storeConfig.openingTimes.map((line) => {
+                  const shouldEmphasize =
+                    line.startsWith("Last time for eating Chametz:") ||
+                    line.startsWith("Last time to burn Chametz:") ||
+                    line.startsWith("First Night Pesach:") ||
+                    line.startsWith("Open throughout Chol Hamoed");
+
+                  return (
+                    <span className={shouldEmphasize ? undefined : "subtle"} key={line}>
+                      {shouldEmphasize ? <strong>{line}</strong> : line}
+                    </span>
+                  );
+                })}
               </div>
             </section>
 
