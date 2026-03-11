@@ -37,7 +37,7 @@ export const storeConfig: StoreConfig = {
 
     
   ],
-  deliveryWindowStart: "2026-03-22",
-  deliveryWindowEnd: "2026-04-03",
+  deliveryWindowStart: "2026-03-24",
+  deliveryWindowEnd: "2026-04-07",
   deliverySlots
 };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isDeliveryDateAllowed, isFridayDeliveryDate } from "@/lib/delivery-rules";
+import { isDeliveryDateAllowed, isDeliverySlotAllowed } from "@/lib/delivery-rules";
 import type { OrderPayload } from "@/types/order";
 
 const ukPostcodeRegex =
@@ -129,7 +129,7 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
           (value) => isDateWithinWindow(value, minDateIso, maxDateIso),
           `Delivery date must be between ${minDateIso} and ${maxDateIso}`
         )
-        .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable on Saturdays"),
+        .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable for selected date"),
       deliverySlot: z.enum(["AM", "PM"]),
       allowKitniyot: z.boolean().optional().default(true),
       allowSubstitutes: z.boolean().optional().default(true),
@@ -152,11 +152,14 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
       notes: optionalNormalizedString
     })
     .superRefine((value, context) => {
-      if (isFridayDeliveryDate(value.deliveryDate) && value.deliverySlot === "PM") {
+      if (
+        isDeliveryDateAllowed(value.deliveryDate) &&
+        !isDeliverySlotAllowed(value.deliveryDate, value.deliverySlot)
+      ) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["deliverySlot"],
-          message: "Friday deliveries are AM only"
+          message: "Selected delivery slot is unavailable for this date"
         });
       }
     });

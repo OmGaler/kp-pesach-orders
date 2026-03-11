@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import { isDateWithinWindow, validateOrderPayload } from "@/lib/validation";
 
 describe("validation", () => {
-  const minDate = "2026-03-22";
-  const maxDate = "2026-04-03";
+  const minDate = "2026-03-24";
+  const maxDate = "2026-04-07";
   const validDate = "2026-03-26";
 
   test("accepts a valid order payload", () => {
@@ -150,7 +150,7 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow("deliveryDate: Delivery is unavailable on Saturdays");
+    ).toThrow("deliveryDate: Delivery is unavailable for selected date");
   });
 
   test("rejects Friday PM deliveries", () => {
@@ -168,7 +168,7 @@ describe("validation", () => {
         minDate,
         maxDate
       )
-    ).toThrow("deliverySlot: Friday deliveries are AM only");
+    ).toThrow("deliverySlot: Selected delivery slot is unavailable for this date");
   });
 
   test("accepts Friday AM deliveries", () => {
@@ -187,6 +187,108 @@ describe("validation", () => {
     );
 
     expect(payload.deliverySlot).toBe("AM");
+  });
+
+  test("rejects 1 April PM deliveries", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-04-01",
+          deliverySlot: "PM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("deliverySlot: Selected delivery slot is unavailable for this date");
+  });
+
+  test("allows 5 and 6 April deliveries", () => {
+    const payload5 = validateOrderPayload(
+      {
+        items: [{ productId: "abc", qty: 2 }],
+        deliveryDate: "2026-04-05",
+        deliverySlot: "PM",
+        customerName: "Sample Customer",
+        phone: "020 7946 0958",
+        addressLine1: "1 Test Street",
+        postcode: "SW1A 1AA"
+      },
+      minDate,
+      maxDate
+    );
+    const payload6 = validateOrderPayload(
+      {
+        items: [{ productId: "abc", qty: 2 }],
+        deliveryDate: "2026-04-06",
+        deliverySlot: "PM",
+        customerName: "Sample Customer",
+        phone: "020 7946 0958",
+        addressLine1: "1 Test Street",
+        postcode: "SW1A 1AA"
+      },
+      minDate,
+      maxDate
+    );
+
+    expect(payload5.deliveryDate).toBe("2026-04-05");
+    expect(payload6.deliveryDate).toBe("2026-04-06");
+  });
+
+  test("rejects blocked gap dates even when inside min/max window", () => {
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-04-02",
+          deliverySlot: "AM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("deliveryDate: Delivery is unavailable for selected date");
+  });
+
+  test("accepts 7 April AM and rejects 7 April PM", () => {
+    const allowed = validateOrderPayload(
+      {
+        items: [{ productId: "abc", qty: 2 }],
+        deliveryDate: "2026-04-07",
+        deliverySlot: "AM",
+        customerName: "Sample Customer",
+        phone: "020 7946 0958",
+        addressLine1: "1 Test Street",
+        postcode: "SW1A 1AA"
+      },
+      minDate,
+      maxDate
+    );
+
+    expect(allowed.deliverySlot).toBe("AM");
+
+    expect(() =>
+      validateOrderPayload(
+        {
+          items: [{ productId: "abc", qty: 2 }],
+          deliveryDate: "2026-04-07",
+          deliverySlot: "PM",
+          customerName: "Sample Customer",
+          phone: "020 7946 0958",
+          addressLine1: "1 Test Street",
+          postcode: "SW1A 1AA"
+        },
+        minDate,
+        maxDate
+      )
+    ).toThrow("deliverySlot: Selected delivery slot is unavailable for this date");
   });
 
   test("validates date helper boundaries", () => {

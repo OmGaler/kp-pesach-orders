@@ -1,5 +1,10 @@
 import type { DeliverySlot } from "@/types/order";
 
+const CORE_WINDOW_START = "2026-03-24";
+const CORE_WINDOW_END = "2026-04-01";
+const EXTRA_ALLOWED_DATES = new Set(["2026-04-05", "2026-04-06", "2026-04-07"]);
+const AM_ONLY_DATES = new Set(["2026-04-01", "2026-04-07"]);
+
 function parseIsoDate(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
   if (!match) {
@@ -37,6 +42,16 @@ function addUtcDays(value: Date, days: number): Date {
   return next;
 }
 
+function isIsoDateWithinRange(value: string, startIso: string, endIso: string): boolean {
+  const date = parseIsoDate(value);
+  const start = parseIsoDate(startIso);
+  const end = parseIsoDate(endIso);
+  if (!date || !start || !end) {
+    return false;
+  }
+  return date >= start && date <= end;
+}
+
 export function weekdayFromIsoDate(value: string): number | null {
   const date = parseIsoDate(value);
   return date ? date.getUTCDay() : null;
@@ -51,15 +66,20 @@ export function isSaturdayDeliveryDate(value: string): boolean {
 }
 
 export function isDeliveryDateAllowed(value: string): boolean {
-  const weekday = weekdayFromIsoDate(value);
-  return weekday !== null && weekday !== 6;
+  if (isSaturdayDeliveryDate(value)) {
+    return false;
+  }
+  if (isIsoDateWithinRange(value, CORE_WINDOW_START, CORE_WINDOW_END)) {
+    return true;
+  }
+  return EXTRA_ALLOWED_DATES.has(value);
 }
 
 export function isDeliverySlotAllowed(deliveryDate: string, deliverySlot: DeliverySlot): boolean {
   if (!isDeliveryDateAllowed(deliveryDate)) {
     return false;
   }
-  if (isFridayDeliveryDate(deliveryDate)) {
+  if (isFridayDeliveryDate(deliveryDate) || AM_ONLY_DATES.has(deliveryDate)) {
     return deliverySlot === "AM";
   }
   return deliverySlot === "AM" || deliverySlot === "PM";

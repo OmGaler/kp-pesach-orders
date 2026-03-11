@@ -8,8 +8,7 @@ import type { StoreConfig } from "@/config/store";
 import {
   firstAllowedDeliveryDateInWindow,
   isDeliveryDateAllowed,
-  isDeliverySlotAllowed,
-  isFridayDeliveryDate
+  isDeliverySlotAllowed
 } from "@/lib/delivery-rules";
 import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
 import type { Category, DeliverySlot, OrderPayload, Product } from "@/types/order";
@@ -164,7 +163,10 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const canSubmitFromBasket = totalUnits > 0 && detailsComplete;
 
   const availableDeliverySlots = useMemo(
-    () => (isFridayDeliveryDate(deliveryDate) ? (["AM"] as DeliverySlot[]) : storeConfig.deliverySlots),
+    () =>
+      storeConfig.deliverySlots.filter((slot) =>
+        isDeliverySlotAllowed(deliveryDate, slot)
+      ),
     [deliveryDate, storeConfig.deliverySlots]
   );
 
@@ -351,8 +353,13 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
       return;
     }
     setDeliveryDate(value);
-    if (isFridayDeliveryDate(value)) {
-      setDeliverySlot("AM");
+    if (!isDeliverySlotAllowed(value, deliverySlot)) {
+      const firstAllowedSlot = storeConfig.deliverySlots.find((slot) =>
+        isDeliverySlotAllowed(value, slot)
+      );
+      if (firstAllowedSlot) {
+        setDeliverySlot(firstAllowedSlot);
+      }
     }
   }
 
