@@ -30,6 +30,87 @@ body {
   padding: 1rem 1rem 6rem;
 }
 
+.order-deadline-banner {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 249, 249, 0.9);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.84rem;
+}
+
+.order-deadline-banner p {
+  margin: 0 0 0.35rem;
+}
+
+.order-deadline-banner ul {
+  margin: 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.order-deadline-selected-date {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.order-deadline-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  border-top: 1px solid var(--line);
+  padding: 0.45rem 0.15rem 0;
+  font-size: 0.8rem;
+}
+
+.order-lock-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(24, 12, 10, 0.48);
+}
+
+.order-lock-modal {
+  width: min(100%, 560px);
+  margin: 0;
+  border-color: #c38b91;
+}
+
+.order-lock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.order-lock-modal h2 {
+  margin: 0;
+}
+
+.order-lock-modal p {
+  margin: 0;
+}
+
+.order-lock-modal ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.order-lock-dismiss {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .brand-logo {
   width: 112px;
   height: 112px;
@@ -452,6 +533,15 @@ button {
 @media (max-width: 1024px) {
   .page-shell {
     padding: 0.75rem 0.75rem calc(6.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .order-deadline-banner {
+    font-size: 0.8rem;
+  }
+
+  .order-deadline-footer {
+    font-size: 0.76rem;
+    padding-bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   .panel {

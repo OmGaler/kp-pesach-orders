@@ -32,6 +32,8 @@ const basePayload = {
   postcode: "NW1 6XE"
 };
 
+const nowBeforeCutoffs = new Date("2026-03-27T12:00:00+00:00");
+
 describe("submitOrder", () => {
   test("returns success for valid order", async () => {
     const sendStoreOrderEmail = vi.fn().mockResolvedValue(undefined);
@@ -42,7 +44,8 @@ describe("submitOrder", () => {
       getCatalog: () => catalog,
       sendStoreOrderEmail,
       sendCustomerConfirmationEmail,
-      appendOrderToSheet
+      appendOrderToSheet,
+      getNow: () => nowBeforeCutoffs
     });
 
     expect(result.ok).toBe(true);
@@ -64,9 +67,22 @@ describe("submitOrder", () => {
           getCatalog: () => catalog,
           sendStoreOrderEmail: vi.fn(),
           sendCustomerConfirmationEmail: vi.fn(),
-          appendOrderToSheet: vi.fn()
+          appendOrderToSheet: vi.fn(),
+          getNow: () => nowBeforeCutoffs
         }
       )
+    ).rejects.toBeInstanceOf(OrderValidationError);
+  });
+
+  test("rejects first chag deliveries after cutoff", async () => {
+    await expect(
+      submitOrder(basePayload, "9.9.9.9", {
+        getCatalog: () => catalog,
+        sendStoreOrderEmail: vi.fn(),
+        sendCustomerConfirmationEmail: vi.fn(),
+        appendOrderToSheet: vi.fn(),
+        getNow: () => new Date("2026-03-30T00:01:00+01:00")
+      })
     ).rejects.toBeInstanceOf(OrderValidationError);
   });
 
@@ -79,7 +95,8 @@ describe("submitOrder", () => {
         getCatalog: () => catalog,
         sendStoreOrderEmail,
         sendCustomerConfirmationEmail: vi.fn().mockResolvedValue(true),
-        appendOrderToSheet
+        appendOrderToSheet,
+        getNow: () => nowBeforeCutoffs
       })
     ).rejects.toBeInstanceOf(OrderProcessingError);
 
@@ -96,7 +113,8 @@ describe("submitOrder", () => {
         getCatalog: () => catalog,
         sendStoreOrderEmail,
         sendCustomerConfirmationEmail: vi.fn(),
-        appendOrderToSheet
+        appendOrderToSheet,
+        getNow: () => nowBeforeCutoffs
       })
     ).rejects.toBeInstanceOf(OrderProcessingError);
   });
@@ -110,7 +128,8 @@ describe("submitOrder", () => {
       getCatalog: () => catalog,
       sendStoreOrderEmail,
       sendCustomerConfirmationEmail,
-      appendOrderToSheet
+      appendOrderToSheet,
+      getNow: () => nowBeforeCutoffs
     });
 
     expect(result.ok).toBe(true);
@@ -129,7 +148,8 @@ describe("submitOrder", () => {
         getCatalog: () => catalog,
         sendStoreOrderEmail,
         sendCustomerConfirmationEmail,
-        appendOrderToSheet
+        appendOrderToSheet,
+        getNow: () => nowBeforeCutoffs
       });
 
       expect(result.ok).toBe(true);

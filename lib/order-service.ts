@@ -23,6 +23,7 @@ interface SubmitDeps {
   sendStoreOrderEmail: typeof sendStoreOrderEmail;
   sendCustomerConfirmationEmail: typeof sendCustomerConfirmationEmail;
   appendOrderToSheet: typeof appendOrderToSheet;
+  getNow?: () => Date;
 }
 
 const defaultDeps: SubmitDeps = {
@@ -83,7 +84,8 @@ export async function submitOrder(
     orderInput = validateOrderPayload(
       payload,
       storeConfig.deliveryWindowStart,
-      storeConfig.deliveryWindowEnd
+      storeConfig.deliveryWindowEnd,
+      deps.getNow ? deps.getNow() : undefined
     );
   } catch (error) {
     throw new OrderValidationError(

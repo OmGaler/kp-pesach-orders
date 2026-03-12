@@ -1,4 +1,9 @@
 import type { DeliverySlot } from "@/types/order";
+import {
+  ORDER_DEADLINE_RULES,
+  ORDER_DEADLINE_TEST_NOW_ISO,
+  type OrderDeadlineRule
+} from "@/config/order-deadlines";
 
 const CORE_WINDOW_START = "2026-03-24";
 const CORE_WINDOW_END = "2026-04-01";
@@ -29,6 +34,14 @@ function parseIsoDate(value: string): Date | null {
   return date;
 }
 
+function parseIsoInstant(value: string): Date | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
 function formatIsoDate(value: Date): string {
   const year = String(value.getUTCFullYear());
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
@@ -50,6 +63,52 @@ function isIsoDateWithinRange(value: string, startIso: string, endIso: string): 
     return false;
   }
   return date >= start && date <= end;
+}
+
+function matchesDeadlineRule(deliveryDate: string, rule: OrderDeadlineRule): boolean {
+  if (rule.deliveryDates?.includes(deliveryDate)) {
+    return true;
+  }
+  if (rule.deliveryDateRange) {
+    return isIsoDateWithinRange(
+      deliveryDate,
+      rule.deliveryDateRange.startIso,
+      rule.deliveryDateRange.endIso
+    );
+  }
+  return false;
+}
+
+export function getOrderingNow(now?: Date): Date {
+  if (now) {
+    return now;
+  }
+
+  if (ORDER_DEADLINE_TEST_NOW_ISO) {
+    const overrideNow = parseIsoInstant(ORDER_DEADLINE_TEST_NOW_ISO);
+    if (overrideNow) {
+      return overrideNow;
+    }
+  }
+
+  return new Date();
+}
+
+export function getDeadlineRuleForDeliveryDate(deliveryDate: string): OrderDeadlineRule | null {
+  for (const rule of ORDER_DEADLINE_RULES) {
+    if (matchesDeadlineRule(deliveryDate, rule)) {
+      return rule;
+    }
+  }
+  return null;
+}
+
+export function getOrderingCutoffForDeliveryDate(deliveryDate: string): Date | null {
+  const rule = getDeadlineRuleForDeliveryDate(deliveryDate);
+  if (!rule) {
+    return null;
+  }
+  return parseIsoInstant(rule.cutoffIso);
 }
 
 export function weekdayFromIsoDate(value: string): number | null {
@@ -75,6 +134,18 @@ export function isDeliveryDateAllowed(value: string): boolean {
   return EXTRA_ALLOWED_DATES.has(value);
 }
 
+export function isDeliveryDateOrderable(value: string, now: Date = getOrderingNow()): boolean {
+  if (!isDeliveryDateAllowed(value)) {
+    return false;
+  }
+
+  const cutoff = getOrderingCutoffForDeliveryDate(value);
+  if (!cutoff) {
+    return true;
+  }
+  return now.getTime() <= cutoff.getTime();
+}
+
 export function isDeliverySlotAllowed(deliveryDate: string, deliverySlot: DeliverySlot): boolean {
   if (!isDeliveryDateAllowed(deliveryDate)) {
     return false;
@@ -83,6 +154,30 @@ export function isDeliverySlotAllowed(deliveryDate: string, deliverySlot: Delive
     return deliverySlot === "AM";
   }
   return deliverySlot === "AM" || deliverySlot === "PM";
+}
+
+export function orderableDeliveryDatesInWindow(
+  minDateIso: string,
+  maxDateIso: string,
+  now: Date = getOrderingNow()
+): string[] {
+  const minDate = parseIsoDate(minDateIso);
+  const maxDate = parseIsoDate(maxDateIso);
+  if (!minDate || !maxDate || minDate > maxDate) {
+    return [];
+  }
+
+  const orderableDates: string[] = [];
+  let cursor = minDate;
+  while (cursor <= maxDate) {
+    const iso = formatIsoDate(cursor);
+    if (isDeliveryDateOrderable(iso, now)) {
+      orderableDates.push(iso);
+    }
+    cursor = addUtcDays(cursor, 1);
+  }
+
+  return orderableDates;
 }
 
 export function firstAllowedDeliveryDateInWindow(minDateIso: string, maxDateIso: string): string {
@@ -102,4 +197,16 @@ export function firstAllowedDeliveryDateInWindow(minDateIso: string, maxDateIso:
   }
 
   return minDateIso;
+}
+
+export function firstOrderableDeliveryDateInWindow(
+  minDateIso: string,
+  maxDateIso: string,
+  now: Date = getOrderingNow()
+): string {
+  const orderableDates = orderableDeliveryDatesInWindow(minDateIso, maxDateIso, now);
+  if (orderableDates.length > 0) {
+    return orderableDates[0];
+  }
+  return firstAllowedDeliveryDateInWindow(minDateIso, maxDateIso);
 }

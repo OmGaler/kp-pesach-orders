@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { isDeliveryDateAllowed, isDeliverySlotAllowed } from "@/lib/delivery-rules";
+import {
+  getOrderingNow,
+  isDeliveryDateAllowed,
+  isDeliveryDateOrderable,
+  isDeliverySlotAllowed
+} from "@/lib/delivery-rules";
 import type { OrderPayload } from "@/types/order";
 
 const ukPostcodeRegex =
@@ -100,7 +105,7 @@ export function isDateWithinWindow(
   return date >= min && date <= max;
 }
 
-export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
+export function makeOrderSchema(minDateIso: string, maxDateIso: string, now: Date = getOrderingNow()) {
   return z
     .object({
       items: z
@@ -129,7 +134,11 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
           (value) => isDateWithinWindow(value, minDateIso, maxDateIso),
           `Delivery date must be between ${minDateIso} and ${maxDateIso}`
         )
-        .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable for selected date"),
+        .refine((value) => isDeliveryDateAllowed(value), "Delivery is unavailable for selected date")
+        .refine(
+          (value) => isDeliveryDateOrderable(value, now),
+          "Ordering deadline has passed for selected delivery date"
+        ),
       deliverySlot: z.enum(["AM", "PM"]),
       allowKitniyot: z.boolean().optional().default(true),
       allowSubstitutes: z.boolean().optional().default(true),
@@ -168,9 +177,10 @@ export function makeOrderSchema(minDateIso: string, maxDateIso: string) {
 export function validateOrderPayload(
   payload: unknown,
   minDateIso: string,
-  maxDateIso: string
+  maxDateIso: string,
+  now: Date = getOrderingNow()
 ): OrderPayload {
-  const schema = makeOrderSchema(minDateIso, maxDateIso);
+  const schema = makeOrderSchema(minDateIso, maxDateIso, now);
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0];

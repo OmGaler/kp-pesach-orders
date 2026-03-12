@@ -4,11 +4,16 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { ORDER_DEADLINE_RULES } from "@/config/order-deadlines";
 import type { StoreConfig } from "@/config/store";
 import {
-  firstAllowedDeliveryDateInWindow,
+  firstOrderableDeliveryDateInWindow,
+  getDeadlineRuleForDeliveryDate,
+  getOrderingNow,
   isDeliveryDateAllowed,
-  isDeliverySlotAllowed
+  isDeliveryDateOrderable,
+  isDeliverySlotAllowed,
+  orderableDeliveryDatesInWindow
 } from "@/lib/delivery-rules";
 import { buildProductSearchIndex, searchCatalog } from "@/lib/product-search";
 import type { Category, DeliverySlot, OrderPayload, Product } from "@/types/order";
@@ -38,8 +43,10 @@ const emptyContactState: ContactState = {
   notes: ""
 };
 
-function buildInitialDate(minDateIso: string, maxDateIso: string): string {
-  return firstAllowedDeliveryDateInWindow(minDateIso, maxDateIso);
+const ORDERING_CLOSED_MESSAGE = "Ordering deadline has passed for the selected delivery date.";
+
+function buildInitialDate(minDateIso: string, maxDateIso: string, now: Date): string {
+  return firstOrderableDeliveryDateInWindow(minDateIso, maxDateIso, now);
 }
 
 function clampQty(value: number): number {
@@ -93,6 +100,10 @@ function countOrderableProducts(products: Product[]): number {
   return products.filter((product) => !product.isSubheading).length;
 }
 
+function lastItem<T>(values: T[]): T | null {
+  return values.length > 0 ? values[values.length - 1] : null;
+}
+
 export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const router = useRouter();
   const productsPanelRef = useRef<HTMLDivElement | null>(null);
@@ -101,8 +112,9 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const contactSectionRef = useRef<HTMLElement | null>(null);
   const [mobileBasketOpen, setMobileBasketOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [orderingNow, setOrderingNow] = useState(() => getOrderingNow());
   const [deliveryDate, setDeliveryDate] = useState(
-    buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd)
+    buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd, getOrderingNow())
   );
   const [deliverySlot, setDeliverySlot] = useState<DeliverySlot>("AM");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -112,6 +124,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [allowSubstitutes, setAllowSubstitutes] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isLockModalDismissed, setIsLockModalDismissed] = useState(false);
   const hasSearch = search.trim().length > 0;
   const nonEmptyCatalog = useMemo(
     () => catalog.filter((category) => countOrderableProducts(category.products) > 0),
@@ -149,18 +162,55 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     [quantities]
   );
 
+  const orderableDeliveryDates = useMemo(
+    () =>
+      orderableDeliveryDatesInWindow(
+        storeConfig.deliveryWindowStart,
+        storeConfig.deliveryWindowEnd,
+        orderingNow
+      ),
+    [orderingNow, storeConfig.deliveryWindowEnd, storeConfig.deliveryWindowStart]
+  );
+
+  const selectedDateOrderable = useMemo(
+    () => isDeliveryDateOrderable(deliveryDate, orderingNow),
+    [deliveryDate, orderingNow]
+  );
+
+  const isOrderingFullyClosed = orderableDeliveryDates.length === 0;
+  const deliveryInputMin = orderableDeliveryDates[0] ?? storeConfig.deliveryWindowStart;
+  const deliveryInputMax = lastItem(orderableDeliveryDates) ?? storeConfig.deliveryWindowEnd;
+
+  const selectedDateDeadlineRule = useMemo(
+    () => getDeadlineRuleForDeliveryDate(deliveryDate),
+    [deliveryDate]
+  );
+
+  const selectedDateDeadlineText = selectedDateDeadlineRule
+    ? `${selectedDateDeadlineRule.announcement} ${selectedDateDeadlineRule.cutoffLabel}.`
+    : null;
+
   const detailsComplete = useMemo(
     () =>
       deliveryDate.trim().length > 0 &&
+      selectedDateOrderable &&
       isDeliverySlotAllowed(deliveryDate, deliverySlot) &&
       contact.customerName.trim().length > 0 &&
       contact.phone.trim().length > 0 &&
       contact.addressLine1.trim().length > 0 &&
       contact.postcode.trim().length > 0,
-    [contact.addressLine1, contact.customerName, contact.phone, contact.postcode, deliveryDate, deliverySlot]
+    [
+      contact.addressLine1,
+      contact.customerName,
+      contact.phone,
+      contact.postcode,
+      deliveryDate,
+      deliverySlot,
+      selectedDateOrderable
+    ]
   );
 
-  const canSubmitFromBasket = totalUnits > 0 && detailsComplete;
+  const canSubmitFromBasket = totalUnits > 0 && detailsComplete && !isOrderingFullyClosed;
 
   const availableDeliverySlots = useMemo(
     () =>
@@ -213,6 +263,47 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     () => selectedKitniyotItems.map((item) => stripKitniyotLabel(item.product.name)).join(", "),
     [selectedKitniyotItems]
   );
+
+  useEffect(() => {
+    const tickHandle = window.setInterval(() => {
+      setOrderingNow(getOrderingNow());
+    }, 30_000);
+
+    return () => window.clearInterval(tickHandle);
+  }, []);
+
+  useEffect(() => {
+    if (orderableDeliveryDates.length === 0) {
+      return;
+    }
+    if (orderableDeliveryDates.includes(deliveryDate)) {
+      return;
+    }
+
+    const nextOrderableDate = orderableDeliveryDates[0];
+    setDeliveryDate(nextOrderableDate);
+
+    if (!isDeliverySlotAllowed(nextOrderableDate, deliverySlot)) {
+      const firstAllowedSlot = storeConfig.deliverySlots.find((slot) =>
+        isDeliverySlotAllowed(nextOrderableDate, slot)
+      );
+      if (firstAllowedSlot) {
+        setDeliverySlot(firstAllowedSlot);
+      }
+    }
+  }, [deliveryDate, deliverySlot, orderableDeliveryDates, storeConfig.deliverySlots]);
+
+  useEffect(() => {
+    if (isOrderingFullyClosed) {
+      setMobileBasketOpen(false);
+    }
+  }, [isOrderingFullyClosed]);
+
+  useEffect(() => {
+    if (!isOrderingFullyClosed) {
+      setIsLockModalDismissed(false);
+    }
+  }, [isOrderingFullyClosed]);
 
   useEffect(() => {
     const desktopMediaQuery = window.matchMedia("(max-width: 1024px)");
@@ -350,8 +441,14 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
   function handleDeliveryDateChange(value: string) {
     if (!isDeliveryDateAllowed(value)) {
+      setSubmitError("Delivery is unavailable for selected date.");
       return;
     }
+    if (!isDeliveryDateOrderable(value, orderingNow)) {
+      setSubmitError(ORDERING_CLOSED_MESSAGE);
+      return;
+    }
+    setSubmitError(null);
     setDeliveryDate(value);
     if (!isDeliverySlotAllowed(value, deliverySlot)) {
       const firstAllowedSlot = storeConfig.deliverySlots.find((slot) =>
@@ -380,6 +477,16 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
+
+    const now = getOrderingNow();
+    if (isOrderingFullyClosed) {
+      setSubmitError("Ordering is now closed for all available Pesach delivery dates.");
+      return;
+    }
+    if (!isDeliveryDateOrderable(deliveryDate, now)) {
+      setSubmitError(ORDERING_CLOSED_MESSAGE);
+      return;
+    }
 
     const items = Object.entries(quantities)
       .filter(([, qty]) => qty > 0)
@@ -427,7 +534,9 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
       setQuantities({});
       setContact(emptyContactState);
-      setDeliveryDate(buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd));
+      setDeliveryDate(
+        buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd, now)
+      );
       setDeliverySlot("AM");
       setNoKitniyot(false);
       setAllowSubstitutes(true);
@@ -479,6 +588,19 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="order-deadline-banner subtle" aria-label="Order deadlines">
+        <p>
+          <strong>Order deadlines:</strong>
+        </p>
+        <ul>
+          {ORDER_DEADLINE_RULES.map((rule) => (
+            <li key={rule.id}>
+              {rule.announcement} <strong>{rule.cutoffLabel}</strong>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="page-grid">
@@ -665,11 +787,12 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                   <input
                     id="deliveryDate"
                     type="date"
-                    min={storeConfig.deliveryWindowStart}
-                    max={storeConfig.deliveryWindowEnd}
+                    min={deliveryInputMin}
+                    max={deliveryInputMax}
                     value={deliveryDate}
                     onChange={(event) => handleDeliveryDateChange(event.target.value)}
                     required
+                    disabled={isOrderingFullyClosed}
                   />
                 </div>
                 <div className="field">
@@ -679,6 +802,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                     value={deliverySlot}
                     onChange={(event) => setDeliverySlot(event.target.value as DeliverySlot)}
                     required
+                    disabled={isOrderingFullyClosed}
                   >
                     {availableDeliverySlots.map((slot) => (
                       <option key={slot} value={slot}>
@@ -688,6 +812,13 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                   </select>
                 </div>
               </div>
+              {!selectedDateOrderable ? (
+                <p className="error">
+                  {ORDERING_CLOSED_MESSAGE}
+                </p>
+              ) : selectedDateDeadlineText ? (
+                <p className="subtle order-deadline-selected-date">{selectedDateDeadlineText}</p>
+              ) : null}
             </section>
 
             <section className="panel stack-md details-contact" ref={contactSectionRef}>
@@ -800,8 +931,12 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 </div>
               ) : null}
               {submitError ? <p className="error">{submitError}</p> : null}
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? "Submitting..." : "Submit order"}
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={loading || isOrderingFullyClosed || !selectedDateOrderable}
+              >
+                {loading ? "Submitting..." : isOrderingFullyClosed ? "Ordering closed" : "Submit order"}
               </button>
             </section>
           </div>
@@ -815,6 +950,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
         aria-haspopup="dialog"
         aria-controls="mobile-basket-dialog"
         aria-expanded={mobileBasketOpen}
+        disabled={isOrderingFullyClosed}
       >
         Basket
         <strong>{totalUnits}</strong>
@@ -900,11 +1036,60 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
               className="btn-primary"
               disabled={loading || !canSubmitFromBasket}
             >
-              {loading ? "Submitting..." : canSubmitFromBasket ? "Submit order" : "Complete details first"}
+              {loading
+                ? "Submitting..."
+                : isOrderingFullyClosed
+                  ? "Ordering closed"
+                  : canSubmitFromBasket
+                    ? "Submit order"
+                    : "Complete details first"}
             </button>
           </div>
         </section>
       </div>
+
+      <footer className="order-deadline-footer subtle" aria-label="Order deadlines footer">
+        {ORDER_DEADLINE_RULES.map((rule) => (
+          <span key={rule.id}>
+            {rule.announcement} {rule.cutoffLabel}
+          </span>
+        ))}
+      </footer>
+
+      {isOrderingFullyClosed && !isLockModalDismissed ? (
+        <div
+          className="order-lock-backdrop"
+          role="presentation"
+          onClick={() => setIsLockModalDismissed(true)}
+        >
+          <section
+            className="panel stack-sm order-lock-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="order-lock-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="order-lock-header">
+              <h2 id="order-lock-title">Ordering is now closed</h2>
+              <button
+                type="button"
+                className="order-lock-dismiss"
+                onClick={() => setIsLockModalDismissed(true)}
+              >
+                Continue browsing
+              </button>
+            </div>
+            <p>The order deadline has passed for all remaining Pesach delivery dates.</p>
+            <ul>
+              {ORDER_DEADLINE_RULES.map((rule) => (
+                <li key={rule.id}>
+                  {rule.announcement} <strong>{rule.cutoffLabel}</strong>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      ) : null}
     </form>
   );
 }
