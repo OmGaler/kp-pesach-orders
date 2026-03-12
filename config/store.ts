@@ -24,8 +24,8 @@ export const storeConfig: StoreConfig = {
   contactAddress: "10 Ashbourne Parade, Finchley Road, London, NW11 0AD",
   openingTimes: [
     "Thursday 19th March: 8AM-10PM",
-    "Friday 20th March: 7AM-7PM",
-    "Sunday 23rd to Thursday 26th March: 8AM-10PM",
+    "Friday 20th March: 7AM-5:30PM",
+    "Sunday 22nd to Thursday 26th March: 8AM-10PM",
     "Friday 27th March: 7AM-6PM",
     "Sunday 29th to Tuesday 31st March: 8AM-10PM",
     "Wednesday 1st April: 7AM-7PM",
