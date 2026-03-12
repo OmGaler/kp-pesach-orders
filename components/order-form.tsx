@@ -635,6 +635,8 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                 <br />
                 Contact: <strong>{storeConfig.contactPhone}</strong>
                 <br />
+                WhatsApp: <strong>{storeConfig.contactWhatsapp}</strong>
+                <br />
                 Email: <strong>{storeConfig.contactEmail}</strong>
               </p>
               <div className="stack-sm">

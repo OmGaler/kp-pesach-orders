@@ -36,6 +36,21 @@ function makeTransporter() {
   });
 }
 
+export function parseRecipientList(raw: string): string[] {
+  return raw
+    .split(/[,\n;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function requireRecipients(name: string): string[] {
+  const parsed = parseRecipientList(requireEnv(name));
+  if (!parsed.length) {
+    throw new Error(`Missing required recipient addresses in ${name}`);
+  }
+  return parsed;
+}
+
 function formatAddress(order: NormalizedOrder): string {
   return [order.addressLine1, order.addressLine2, order.postcode]
     .filter(Boolean)
@@ -53,7 +68,11 @@ export async function sendStoreOrderEmail(
   storeConfig: StoreConfig
 ): Promise<void> {
   const from = requireEnv("SMTP_FROM");
-  const to = requireEnv("ORDERS_EMAIL");
+  const recipients = requireRecipients("ORDERS_EMAIL");
+  const [primaryRecipient, ...bccRecipients] = recipients;
+  if (!primaryRecipient) {
+    throw new Error("Missing primary store recipient in ORDERS_EMAIL");
+  }
   const transporter = makeTransporter();
   const body = [
     `Order Ref: ${order.orderRef}`,
@@ -76,7 +95,8 @@ export async function sendStoreOrderEmail(
 
   await transporter.sendMail({
     from,
-    to,
+    to: primaryRecipient,
+    bcc: bccRecipients.length ? bccRecipients : undefined,
     subject: `${storeConfig.storeName} Pesach Order ${order.orderRef}`,
     text: body,
     replyTo: order.email || undefined
@@ -92,6 +112,7 @@ export async function sendCustomerConfirmationEmail(
   }
   const from = requireEnv("SMTP_FROM");
   const transporter = makeTransporter();
+  const storeRecipients = requireRecipients("ORDERS_EMAIL");
 
   const body = [
     `Thank you for your order with ${storeConfig.storeName}.`,
@@ -110,7 +131,7 @@ export async function sendCustomerConfirmationEmail(
     to: order.email,
     subject: `${storeConfig.storeName} order confirmation (${order.orderRef})`,
     text: body,
-    replyTo: requireEnv("ORDERS_EMAIL")
+    replyTo: storeRecipients[0]
   });
 
   return true;

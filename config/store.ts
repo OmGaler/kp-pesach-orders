@@ -6,6 +6,7 @@ export interface StoreConfig {
   storeName: string;
   ordersEmail: string;
   contactPhone: string;
+  contactWhatsapp: string;
   contactEmail: string;
   contactAddress: string;
   openingTimes: string[];
@@ -18,6 +19,7 @@ export const storeConfig: StoreConfig = {
   storeName: "Kosher Paradise",
   ordersEmail: process.env.ORDERS_EMAIL ?? "",
   contactPhone: "0208 455 2454",
+  contactWhatsapp: "07498 445554",
   contactEmail: "orders@kosherparadise.co.uk",
   contactAddress: "10 Ashbourne Parade, Finchley Road, London, NW11 0AD",
   openingTimes: [
