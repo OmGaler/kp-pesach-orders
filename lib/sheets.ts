@@ -3,6 +3,7 @@ import { requireEnv } from "@/lib/env";
 import type { NormalizedOrder } from "@/types/order";
 
 const DEFAULT_DASHBOARD_TITLE = "Sheet1";
+const COMMON_DASHBOARD_TITLES = ["Orders", "Contents", DEFAULT_DASHBOARD_TITLE] as const;
 const DASHBOARD_HEADERS = [
   "Order ID",
   "Created At",
@@ -40,6 +41,50 @@ interface GoogleApiErrorShape {
 function dashboardTabTitle(): string {
   const configuredTitle = process.env.GOOGLE_SHEET_DASHBOARD_TAB?.trim();
   return configuredTitle || DEFAULT_DASHBOARD_TITLE;
+}
+
+function normaliseSheetTitle(title: string): string {
+  return title.trim().toLowerCase();
+}
+
+function findSheetByTitle(
+  knownSheets: SpreadsheetSheet[],
+  title: string
+): SpreadsheetSheet | undefined {
+  const expectedTitle = normaliseSheetTitle(title);
+  return knownSheets.find((sheet) => normaliseSheetTitle(sheet.title) === expectedTitle);
+}
+
+function isLikelyOrderDetailSheetTitle(title: string): boolean {
+  return /^order\b/i.test(title.trim());
+}
+
+export function selectDashboardSheet(
+  knownSheets: SpreadsheetSheet[],
+  configuredTitle = process.env.GOOGLE_SHEET_DASHBOARD_TAB?.trim()
+): SpreadsheetSheet | null {
+  if (configuredTitle) {
+    const configuredSheet = findSheetByTitle(knownSheets, configuredTitle);
+    if (configuredSheet) {
+      return configuredSheet;
+    }
+  }
+
+  for (const commonTitle of COMMON_DASHBOARD_TITLES) {
+    const matchingSheet = findSheetByTitle(knownSheets, commonTitle);
+    if (matchingSheet) {
+      return matchingSheet;
+    }
+  }
+
+  const firstNonOrderSheet = knownSheets.find(
+    (sheet) => !isLikelyOrderDetailSheetTitle(sheet.title)
+  );
+  if (firstNonOrderSheet) {
+    return firstNonOrderSheet;
+  }
+
+  return knownSheets[0] ?? null;
 }
 
 function normalizePrivateKey(rawPrivateKey: string): string {
@@ -183,19 +228,9 @@ async function ensureDashboardSheet(
   knownSheets: SpreadsheetSheet[]
 ): Promise<SpreadsheetSheet> {
   const configuredTitle = dashboardTabTitle();
-  const configuredSheet = knownSheets.find((sheet) => sheet.title === configuredTitle);
-  if (configuredSheet) {
-    return configuredSheet;
-  }
-
-  const sheet1 = knownSheets.find((sheet) => sheet.title === "Sheet1");
-  if (sheet1) {
-    return sheet1;
-  }
-
-  const firstSheet = knownSheets[0];
-  if (firstSheet) {
-    return firstSheet;
+  const existingDashboard = selectDashboardSheet(knownSheets, configuredTitle);
+  if (existingDashboard) {
+    return existingDashboard;
   }
 
   const createResponse = await sheets.spreadsheets.batchUpdate({

@@ -7,7 +7,6 @@ import type { FormEvent } from "react";
 import { ORDER_DEADLINE_RULES } from "@/config/order-deadlines";
 import type { StoreConfig } from "@/config/store";
 import {
-  firstOrderableDeliveryDateInWindow,
   getDeadlineRuleForDeliveryDate,
   getOrderingNow,
   isDeliveryDateAllowed,
@@ -44,10 +43,6 @@ const emptyContactState: ContactState = {
 };
 
 const ORDERING_CLOSED_MESSAGE = "Ordering deadline has passed for the selected delivery date.";
-
-function buildInitialDate(minDateIso: string, maxDateIso: string, now: Date): string {
-  return firstOrderableDeliveryDateInWindow(minDateIso, maxDateIso, now);
-}
 
 function clampQty(value: number): number {
   if (Number.isNaN(value) || value < 0) {
@@ -113,9 +108,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   const [mobileBasketOpen, setMobileBasketOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [orderingNow, setOrderingNow] = useState(() => getOrderingNow());
-  const [deliveryDate, setDeliveryDate] = useState(
-    buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd, getOrderingNow())
-  );
+  const [deliveryDate, setDeliveryDate] = useState("");
   const [deliverySlot, setDeliverySlot] = useState<DeliverySlot>("AM");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -214,9 +207,9 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
   const availableDeliverySlots = useMemo(
     () =>
-      storeConfig.deliverySlots.filter((slot) =>
-        isDeliverySlotAllowed(deliveryDate, slot)
-      ),
+      deliveryDate
+        ? storeConfig.deliverySlots.filter((slot) => isDeliverySlotAllowed(deliveryDate, slot))
+        : storeConfig.deliverySlots,
     [deliveryDate, storeConfig.deliverySlots]
   );
 
@@ -276,7 +269,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     if (orderableDeliveryDates.length === 0) {
       return;
     }
-    if (orderableDeliveryDates.includes(deliveryDate)) {
+    if (!deliveryDate || orderableDeliveryDates.includes(deliveryDate)) {
       return;
     }
 
@@ -440,6 +433,11 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
   }
 
   function handleDeliveryDateChange(value: string) {
+    if (!value) {
+      setSubmitError(null);
+      setDeliveryDate("");
+      return;
+    }
     if (!isDeliveryDateAllowed(value)) {
       setSubmitError("Delivery is unavailable for selected date.");
       return;
@@ -481,6 +479,10 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
     const now = getOrderingNow();
     if (isOrderingFullyClosed) {
       setSubmitError("Ordering is now closed for all available Pesach delivery dates.");
+      return;
+    }
+    if (!deliveryDate.trim()) {
+      setSubmitError("Please select a delivery date.");
       return;
     }
     if (!isDeliveryDateOrderable(deliveryDate, now)) {
@@ -534,9 +536,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
 
       setQuantities({});
       setContact(emptyContactState);
-      setDeliveryDate(
-        buildInitialDate(storeConfig.deliveryWindowStart, storeConfig.deliveryWindowEnd, now)
-      );
+      setDeliveryDate("");
       setDeliverySlot("AM");
       setNoKitniyot(false);
       setAllowSubstitutes(true);
@@ -802,7 +802,7 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                     value={deliverySlot}
                     onChange={(event) => setDeliverySlot(event.target.value as DeliverySlot)}
                     required
-                    disabled={isOrderingFullyClosed}
+                    disabled={isOrderingFullyClosed || !deliveryDate}
                   >
                     {availableDeliverySlots.map((slot) => (
                       <option key={slot} value={slot}>
@@ -812,11 +812,11 @@ export function OrderForm({ catalog, storeConfig }: OrderFormProps) {
                   </select>
                 </div>
               </div>
-              {!selectedDateOrderable ? (
+              {deliveryDate && !selectedDateOrderable ? (
                 <p className="error">
                   {ORDERING_CLOSED_MESSAGE}
                 </p>
-              ) : selectedDateDeadlineText ? (
+              ) : deliveryDate && selectedDateDeadlineText ? (
                 <p className="subtle order-deadline-selected-date">{selectedDateDeadlineText}</p>
               ) : null}
             </section>
