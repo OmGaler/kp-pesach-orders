@@ -60,3 +60,15 @@ Run:
 ```bash
 npm run test
 ```
+
+## Sales Analysis
+
+Run:
+
+```bash
+npm run analyse:sales
+```
+
+This reads every `Order ...` tab from the configured Google Sheets workbook, aggregates product sales across all order sheets, and writes JSON plus CSV extracts into `notebooks/data/`.
+
+The notebook output itself under `notebooks/` is proprietary not committed.

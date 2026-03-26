@@ -1,0 +1,15 @@
+#!/bin/sh
+
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ipynb')
+
+if [ -z "$files" ]; then
+  exit 0
+fi
+
+python scripts/strip-notebook-output.py $files || exit $?
+
+echo "$files" | while IFS= read -r file; do
+  if [ -n "$file" ]; then
+    git add -- "$file"
+  fi
+done

@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "analyse:sales": "node scripts/export-sales-analysis.js",
+    "analyse:stock": "node scripts/query-unfulfilled-demand.js",
+    "setup:hooks": "powershell -ExecutionPolicy Bypass -File scripts/setup-git-hooks.ps1",
     "test": "vitest run",
     "test:watch": "vitest"
   },

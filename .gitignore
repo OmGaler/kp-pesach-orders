@@ -28,3 +28,10 @@ pnpm-debug.log*
 
 # test output
 /coverage
+
+# local analysis workspace
+/notebooks/data/
+**/.ipynb_checkpoints/
+
+# local analysis work
+/analysis-output
