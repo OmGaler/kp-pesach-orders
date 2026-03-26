@@ -21,8 +21,8 @@ export const ORDER_DEADLINE_RULES: readonly OrderDeadlineRule[] = [
       startIso: "2026-03-24",
       endIso: "2026-04-01"
     },
-    cutoffIso: "2026-03-29T23:59:59+01:00",
-    cutoffLabel: "Sun 29 Mar, 11:59PM",
+    cutoffIso: "2026-03-30T23:59:59+01:00",
+    cutoffLabel: "Mon 30 Mar, 11:59PM",
     announcement:
       "First Chag deliveries (up to 1st April) close on "
   },
@@ -30,7 +30,7 @@ export const ORDER_DEADLINE_RULES: readonly OrderDeadlineRule[] = [
     id: "second-chag",
     deliveryDates: ["2026-04-05", "2026-04-06", "2026-04-07"],
     cutoffIso: "2026-04-05T23:59:59+01:00",
-    cutoffLabel: "Sun 5 Apr, 11:59PM",
+    cutoffLabel: "Mon 6 Apr, 11:59PM",
     announcement:
       "Second Chag deliveries (5th, 6th or 7th April) close on "
   }

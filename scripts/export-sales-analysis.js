@@ -330,6 +330,7 @@ async function main() {
   );
   writeCsv(path.join(outputDir, "orders.csv"), analysis.orders);
   writeCsv(path.join(outputDir, "product-totals.csv"), analysis.productTotals);
+  writeCsv(path.join(outputDir, "unfulfilled-product-totals.csv"), analysis.unfulfilledProductTotals);
   writeCsv(path.join(outputDir, "category-totals.csv"), analysis.categoryTotals);
   writeCsv(path.join(outputDir, "subcategory-totals.csv"), analysis.subcategoryTotals);
   writeCsv(path.join(outputDir, "product-type-totals.csv"), analysis.productTypeTotals);

@@ -92,6 +92,7 @@ describe("buildSalesAnalysis", () => {
           customerName: "Leah Cohen",
           deliveryDate: "2026-04-01",
           deliverySlot: "Morning",
+          status: "Delivered",
           items: [
             { name: "Brand A Smoked Salmon", size: "100g", quantity: 2 },
             { name: "French's Yellow Mustard", size: "500g", quantity: 1 }
@@ -103,6 +104,7 @@ describe("buildSalesAnalysis", () => {
           customerName: "David Cohen",
           deliveryDate: "2026-04-02",
           deliverySlot: "Afternoon",
+          status: "Picking",
           items: [
             { name: "Brand B Smoked Salmon", size: "200g", quantity: 3 },
             { name: "Heinz Mustard", size: "250g", quantity: 2 }
@@ -231,6 +233,27 @@ describe("buildSalesAnalysis", () => {
         quantityPct: 62.5
       }
     ]);
+
+    expect(analysis.unfulfilledProductTotals).toEqual([
+      {
+        name: "Brand B Smoked Salmon",
+        category: "FISH",
+        subcategory: "Smoked Salmon",
+        productType: "Smoked Salmon",
+        totalQuantity: 3,
+        orderCount: 1,
+        quantityPct: 60
+      },
+      {
+        name: "Heinz Mustard",
+        category: "CONDIMENTS",
+        subcategory: "Mustard",
+        productType: "Mustard",
+        totalQuantity: 2,
+        orderCount: 1,
+        quantityPct: 40
+      }
+    ]);
   });
 
   test("collapses wine and chocolate brand sections into broader categories", () => {
@@ -242,6 +265,7 @@ describe("buildSalesAnalysis", () => {
           customerName: "Sarah",
           deliveryDate: "2026-04-03",
           deliverySlot: "Morning",
+          status: "Picking",
           items: [
             { name: "Merlot", size: "750ml", quantity: 2 },
             { name: "Swiss Milk Chocolate Bar", size: "100g", quantity: 3 }
